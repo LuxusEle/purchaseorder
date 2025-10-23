@@ -10,23 +10,244 @@ let currentBOMLeadIndex = null;
 let currentEditingLeadIndex = null;
 let currentLeadView = 'kanban'; // 'kanban' or 'table'
 let currentQuoteItems = [];
+let currentUser = null;
+let currentUserId = null;
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
-    loadData();
-    loadSettings();
-    setupEventListeners();
-    updateDashboard();
-    renderInventory();
-    renderSuppliers();
-    renderOrders();
-    renderCustomers();
-    renderLeadsKanban();
-    renderQuotes();
-    applySettings();
+    // Wait for Firebase to initialize
+    setTimeout(() => {
+        setupAuthentication();
+    }, 1000);
 });
 
-// Load data from localStorage
+// Firebase Authentication Setup
+function setupAuthentication() {
+    if (!window.firebaseAuth) {
+        console.error('Firebase not initialized');
+        return;
+    }
+
+    // Check authentication state
+    window.firebaseOnAuthChange(window.firebaseAuth, async (user) => {
+        if (user) {
+            currentUser = user;
+            currentUserId = user.uid;
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'flex';
+            document.getElementById('userEmail').textContent = user.email;
+            
+            // Load data from Firebase
+            await loadDataFromFirebase();
+            await loadSettingsFromFirebase();
+            
+            // Initialize app
+            setupEventListeners();
+            updateDashboard();
+            renderInventory();
+            renderSuppliers();
+            renderOrders();
+            renderCustomers();
+            renderLeadsKanban();
+            renderQuotes();
+            applySettings();
+        } else {
+            currentUser = null;
+            currentUserId = null;
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('appContainer').style.display = 'none';
+        }
+    });
+
+    // Login form handler
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        
+        try {
+            await window.firebaseSignIn(window.firebaseAuth, email, password);
+        } catch (error) {
+            alert('Login failed: ' + error.message);
+        }
+    });
+
+    // Register form handler
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('registerEmail').value;
+        const password = document.getElementById('registerPassword').value;
+        const name = document.getElementById('registerName').value;
+        
+        try {
+            const userCredential = await window.firebaseCreateUser(window.firebaseAuth, email, password);
+            // Create user profile in Firestore
+            await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'users', userCredential.user.uid), {
+                name: name,
+                email: email,
+                createdAt: new Date().toISOString()
+            });
+            alert('Account created successfully!');
+            showLoginForm();
+        } catch (error) {
+            alert('Registration failed: ' + error.message);
+        }
+    });
+}
+
+function showLoginForm() {
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('registerForm').style.display = 'none';
+}
+
+function showRegisterForm() {
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('registerForm').style.display = 'block';
+}
+
+async function handleLogout() {
+    try {
+        await window.firebaseSignOut(window.firebaseAuth);
+        // Clear local data
+        inventory = [];
+        suppliers = [];
+        orders = [];
+        customers = [];
+        leads = [];
+        quotes = [];
+        settings = {};
+    } catch (error) {
+        alert('Logout failed: ' + error.message);
+    }
+}
+
+// Load data from Firebase
+async function loadDataFromFirebase() {
+    if (!currentUserId) return;
+    
+    try {
+        const userDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'userData', currentUserId));
+        if (userDoc.exists()) {
+            const data = userDoc.data();
+            inventory = data.inventory || [];
+            suppliers = data.suppliers || [];
+            orders = data.orders || [];
+            customers = data.customers || [];
+            leads = data.leads || [];
+            quotes = data.quotes || [];
+        }
+    } catch (error) {
+        console.error('Error loading data from Firebase:', error);
+    }
+}
+
+// Load settings from Firebase
+async function loadSettingsFromFirebase() {
+    if (!currentUserId) return;
+    
+    try {
+        const settingsDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'userSettings', currentUserId));
+        if (settingsDoc.exists()) {
+            settings = settingsDoc.data();
+        } else {
+            // Default settings
+            settings = {
+                companyName: 'Your Company Name',
+                companyEmail: 'info@company.com',
+                companyPhone: '(555) 123-4567',
+                companyWebsite: 'www.company.com',
+                companyAddress: 'Street Address, City, State ZIP',
+                companyLogo: '',
+                currencySymbol: '$',
+                dateFormat: 'MM/DD/YYYY',
+                quoteTerms: 'Payment terms: 50% upfront, 50% on completion.\nDelivery: 2-4 weeks from order confirmation.\nWarranty: 1 year parts and labor.',
+                invoiceTerms: 'Payment due within 30 days.\nLate fee: 2% per month on overdue balance.',
+                quoteValidity: 30,
+                paymentDue: 30,
+                primaryColor: '#4f46e5',
+                quoteTheme: 'modern'
+            };
+        }
+    } catch (error) {
+        console.error('Error loading settings from Firebase:', error);
+    }
+}
+
+// Save data to Firebase
+async function saveDataToFirebase() {
+    if (!currentUserId) return;
+    
+    try {
+        await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'userData', currentUserId), {
+            inventory: inventory,
+            suppliers: suppliers,
+            orders: orders,
+            customers: customers,
+            leads: leads,
+            quotes: quotes,
+            lastUpdated: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error saving data to Firebase:', error);
+    }
+}
+
+// Save settings to Firebase
+async function saveSettingsToFirebase() {
+    if (!currentUserId) return;
+    
+    try {
+        await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'userSettings', currentUserId), settings);
+    } catch (error) {
+        console.error('Error saving settings to Firebase:', error);
+    }
+}
+
+// Logo upload handler
+async function handleLogoUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+        alert('File size must be less than 2MB');
+        input.value = '';
+        return;
+    }
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        input.value = '';
+        return;
+    }
+    
+    try {
+        // Upload to Firebase Storage
+        const storageRef = window.firebaseStorageRef(window.firebaseStorage, `logos/${currentUserId}/${file.name}`);
+        await window.firebaseUploadBytes(storageRef, file);
+        const downloadURL = await window.firebaseGetDownloadURL(storageRef);
+        
+        // Save URL to settings
+        document.getElementById('settingsCompanyLogo').value = downloadURL;
+        document.getElementById('logoPreviewImg').src = downloadURL;
+        document.getElementById('logoPreview').style.display = 'block';
+        
+        alert('Logo uploaded successfully!');
+    } catch (error) {
+        alert('Error uploading logo: ' + error.message);
+    }
+}
+
+async function removeLogo() {
+    if (!confirm('Are you sure you want to remove the logo?')) return;
+    
+    document.getElementById('settingsCompanyLogo').value = '';
+    document.getElementById('logoPreview').style.display = 'none';
+    document.getElementById('settingsCompanyLogoFile').value = '';
+}
+
+// Load data from localStorage (fallback)
 function loadData() {
     const savedInventory = localStorage.getItem('inventory');
     const savedSuppliers = localStorage.getItem('suppliers');
@@ -43,7 +264,7 @@ function loadData() {
     if (savedQuotes) quotes = JSON.parse(savedQuotes);
 }
 
-// Load settings
+// Load settings (fallback)
 function loadSettings() {
     const savedSettings = localStorage.getItem('appSettings');
     if (savedSettings) {
@@ -57,7 +278,7 @@ function loadSettings() {
             companyWebsite: 'www.company.com',
             companyAddress: 'Street Address, City, State ZIP',
             companyLogo: '',
-            currency: '$',
+            currencySymbol: '$',
             dateFormat: 'MM/DD/YYYY',
             quoteTerms: 'Payment terms: 50% upfront, 50% on completion.\nDelivery: 2-4 weeks from order confirmation.\nWarranty: 1 year parts and labor.',
             invoiceTerms: 'Payment due within 30 days.\nLate fee: 2% per month on overdue balance.\nAccepted payment methods: Cash, Check, Bank Transfer.',
@@ -70,7 +291,7 @@ function loadSettings() {
     }
 }
 
-// Save data to localStorage
+// Save data to localStorage (fallback)
 function saveData() {
     localStorage.setItem('inventory', JSON.stringify(inventory));
     localStorage.setItem('suppliers', JSON.stringify(suppliers));
@@ -78,6 +299,9 @@ function saveData() {
     localStorage.setItem('customers', JSON.stringify(customers));
     localStorage.setItem('leads', JSON.stringify(leads));
     localStorage.setItem('quotes', JSON.stringify(quotes));
+    
+    // Also save to Firebase
+    saveDataToFirebase();
 }
 
 // Event Listeners
@@ -1490,7 +1714,18 @@ function generateEstimatePDF() {
     const doc = new jsPDF();
     
     // Convert primary color hex to RGB
-    const primaryColorRGB = hexToRgb(appSettings.primaryColor);
+    const primaryColorRGB = hexToRgb(settings.primaryColor || '#4f46e5');
+    
+    // Add logo if exists
+    let startY = 35;
+    if (settings.companyLogo) {
+        try {
+            doc.addImage(settings.companyLogo, 'PNG', 14, 15, 40, 20);
+            startY = 40;
+        } catch (e) {
+            console.error('Error adding logo:', e);
+        }
+    }
     
     // Header
     doc.setFontSize(24);
@@ -1500,61 +1735,63 @@ function generateEstimatePDF() {
     // Company Info (from settings)
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
-    doc.text(appSettings.companyName, 14, 35);
-    doc.text(appSettings.companyAddress, 14, 40);
-    doc.text(`Phone: ${appSettings.companyPhone}`, 14, 45);
-    doc.text(`Email: ${appSettings.companyEmail}`, 14, 50);
-    if (appSettings.companyWebsite) {
-        doc.text(`Web: ${appSettings.companyWebsite}`, 14, 55);
+    doc.text(settings.companyName || 'Company Name', 14, startY);
+    doc.text(settings.companyAddress || 'Address', 14, startY + 5);
+    doc.text(`Phone: ${settings.companyPhone || 'Phone'}`, 14, startY + 10);
+    doc.text(`Email: ${settings.companyEmail || 'Email'}`, 14, startY + 15);
+    if (settings.companyWebsite) {
+        doc.text(`Web: ${settings.companyWebsite}`, 14, startY + 20);
     }
     
     // Estimate Info
     doc.setFontSize(10);
-    doc.text(`Estimate #: ${lead.id}`, 140, 35);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 140, 40);
-    doc.text(`Valid Until: ${new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString()}`, 140, 45);
+    doc.text(`Estimate #: ${lead.id}`, 140, startY);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 140, startY + 5);
+    const validityDays = settings.quoteValidity || 30;
+    doc.text(`Valid Until: ${new Date(Date.now() + validityDays*24*60*60*1000).toLocaleDateString()}`, 140, startY + 10);
     
     // Customer Info
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('CUSTOMER INFORMATION', 14, 68);
+    doc.text('CUSTOMER INFORMATION', 14, startY + 30);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
     
     if (customer) {
-        doc.text(`Name: ${customer.name}`, 14, 75);
-        doc.text(`Company: ${customer.company}`, 14, 80);
-        doc.text(`Email: ${customer.email}`, 14, 85);
-        doc.text(`Phone: ${customer.phone}`, 14, 90);
+        doc.text(`Name: ${customer.name}`, 14, startY + 37);
+        doc.text(`Company: ${customer.company}`, 14, startY + 42);
+        doc.text(`Email: ${customer.email}`, 14, startY + 47);
+        doc.text(`Phone: ${customer.phone}`, 14, startY + 52);
     }
     
     // Project Info
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('PROJECT DETAILS', 14, 103);
+    doc.text('PROJECT DETAILS', 14, startY + 65);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
-    doc.text(`Project: ${lead.name}`, 14, 110);
+    doc.text(`Project: ${lead.name}`, 14, startY + 72);
     
     // Items Table
+    const currencySymbol = settings.currencySymbol || '$';
     const tableData = lead.bom.items.map(item => [
         item.name,
         item.type,
         item.quantity.toString(),
-        `${appSettings.currencySymbol}${item.unitPrice.toFixed(2)}`,
-        `${appSettings.currencySymbol}${(item.quantity * item.unitPrice).toFixed(2)}`
+        `${currencySymbol}${item.unitPrice.toFixed(2)}`,
+        `${currencySymbol}${(item.quantity * item.unitPrice).toFixed(2)}`
     ]);
     
     doc.autoTable({
-        startY: 118,
+        startY: startY + 80,
         head: [['Item Description', 'Type', 'Qty', 'Unit Price', 'Total']],
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
         foot: [
-            ['', '', '', 'Subtotal:', `${appSettings.currencySymbol}${lead.bom.subtotal.toFixed(2)}`],
-            ['', '', '', `Profit (${lead.bom.profitPercent}%):`, `${appSettings.currencySymbol}${lead.bom.profit.toFixed(2)}`],
-            ['', '', '', 'TOTAL:', `${appSettings.currencySymbol}${lead.bom.total.toFixed(2)}`]
+            ['', '', '', 'Subtotal:', `${currencySymbol}${lead.bom.subtotal.toFixed(2)}`],
+            ['', '', '', `Profit (${lead.bom.profitPercent}%):`, `${currencySymbol}${lead.bom.profit.toFixed(2)}`],
+            ['', '', '', 'TOTAL:', `${currencySymbol}${lead.bom.total.toFixed(2)}`]
         ],
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
@@ -1567,7 +1804,7 @@ function generateEstimatePDF() {
     doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
     
-    const termsText = appSettings.quoteTerms + '\n' + appSettings.paymentTerms;
+    const termsText = (settings.quoteTerms || 'Standard terms apply') + '\n' + (settings.invoiceTerms || '');
     const splitTerms = doc.splitTextToSize(termsText, 180);
     doc.text(splitTerms, 14, finalY + 7);
     
@@ -1585,7 +1822,7 @@ function generateEstimatePDF() {
     doc.setFontSize(9);
     doc.setTextColor(128, 128, 128);
     doc.text('Thank you for your business!', 105, pageHeight - 20, { align: 'center' });
-    doc.text(`Please contact us at ${appSettings.companyEmail} if you have any questions.`, 105, pageHeight - 15, { align: 'center' });
+    doc.text(`Please contact us at ${settings.companyEmail || 'email'} if you have any questions.`, 105, pageHeight - 15, { align: 'center' });
     
     // Save PDF
     doc.save(`Estimate_${lead.id}_${customer ? customer.name.replace(/\s/g, '_') : 'Customer'}.pdf`);
@@ -1593,6 +1830,7 @@ function generateEstimatePDF() {
 
 // Helper function to convert hex to RGB
 function hexToRgb(hex) {
+    if (!hex) return { r: 79, g: 70, b: 229 };
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? {
         r: parseInt(result[1], 16),
@@ -1745,6 +1983,12 @@ function populateSettings() {
     document.getElementById('settingsCompanyWebsite').value = settings.companyWebsite || '';
     document.getElementById('settingsCompanyLogo').value = settings.companyLogo || '';
     
+    // Show logo preview if exists
+    if (settings.companyLogo) {
+        document.getElementById('logoPreviewImg').src = settings.companyLogo;
+        document.getElementById('logoPreview').style.display = 'block';
+    }
+    
     document.getElementById('settingsCurrency').value = settings.currencySymbol || '$';
     document.getElementById('settingsDateFormat').value = settings.dateFormat || 'MM/DD/YYYY';
     
@@ -1781,6 +2025,7 @@ function saveSettings(e) {
     };
     
     localStorage.setItem('appSettings', JSON.stringify(settings));
+    saveSettingsToFirebase();
     
     applySettings();
     
