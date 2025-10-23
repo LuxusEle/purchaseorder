@@ -106,6 +106,7 @@ function setupAuthentication() {
             renderQuotes();
             renderStaffMembers();
             applySettings();
+            updateHeaderLogo();
         } else {
             currentUser = null;
             currentUserId = null;
@@ -727,7 +728,7 @@ function updateDashboard() {
     document.getElementById('pendingOrders').textContent = pendingOrdersCount;
     
     const totalValue = inventory.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-    document.getElementById('totalValue').textContent = `$${totalValue.toLocaleString()}`;
+    document.getElementById('totalValue').textContent = `${settings.currencySymbol || '$'}${totalValue.toLocaleString()}`;
     
     // Count active leads (not won or lost)
     const activeLeads = leads.filter(l => l.stage !== 'won' && l.stage !== 'lost').length;
@@ -796,8 +797,8 @@ function renderInventory() {
             <td><span class="badge badge-${item.type}">${item.type}</span></td>
             <td>${item.supplier}</td>
             <td>${item.quantity}</td>
-            <td>$${item.price.toFixed(2)}</td>
-            <td>$${(item.quantity * item.price).toFixed(2)}</td>
+            <td>${settings.currencySymbol || '$'}${item.price.toFixed(2)}</td>
+            <td>${settings.currencySymbol || '$'}${(item.quantity * item.price).toFixed(2)}</td>
             <td>
                 <div class="action-buttons">
                     <button class="btn-action btn-edit" onclick="editItem(${index})">
@@ -835,7 +836,7 @@ function renderInventory() {
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Unit Price</span>
-                            <span class="detail-value">$${item.price.toFixed(2)}</span>
+                            <span class="detail-value">${settings.currencySymbol || '$'}${item.price.toFixed(2)}</span>
                         </div>
                     </div>
                     ${item.description ? `
@@ -1771,8 +1772,10 @@ function filterLeads(filter) {
     switchLeadView('table');
 }
 
-function handleAddLead(e) {
+async function handleAddLead(e) {
     e.preventDefault();
+    
+    console.log('Adding lead...');
     
     const lead = {
         id: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].id : 'LEAD-' + String(leads.length + 1).padStart(5, '0'),
@@ -1786,6 +1789,8 @@ function handleAddLead(e) {
         bom: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].bom : null
     };
     
+    console.log('Lead object:', lead);
+    
     if (currentEditingLeadIndex !== null) {
         // Update existing lead
         leads[currentEditingLeadIndex] = lead;
@@ -1795,17 +1800,21 @@ function handleAddLead(e) {
         leads.push(lead);
     }
     
+    console.log('Total leads now:', leads.length);
+    
     saveData();
-    saveDataToFirebase();
+    await saveDataToFirebase();
     renderLeads();
     updateDashboard();
-    updateCustomerSelects(); // Make sure customer dropdown is updated
+    updateCustomerSelects();
     closeModal('addLeadModal');
     e.target.reset();
     
     // Reset button text
     document.getElementById('leadSubmitText').textContent = 'Add Lead';
     document.querySelector('#leadSubmitBtn i').className = 'fas fa-plus';
+    
+    console.log('Lead added successfully!');
 }
 
 function editLead(index, event) {
