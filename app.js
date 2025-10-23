@@ -5,6 +5,8 @@ let orders = [];
 let customers = [];
 let leads = [];
 let currentBOMLeadIndex = null;
+let currentEditingLeadIndex = null;
+let currentLeadView = 'kanban'; // 'kanban' or 'table'
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSuppliers();
     renderOrders();
     renderCustomers();
-    renderLeads();
+    renderLeadsKanban();
 });
 
 // Load data from localStorage
@@ -789,8 +791,66 @@ function deleteCustomer(index) {
 }
 
 // Lead Management
-function renderLeads() {
-    const tbody = document.getElementById('leadsTable');
+function renderLeadsKanban() {
+    // Clear all columns
+    document.querySelectorAll('.kanban-cards').forEach(column => {
+        column.innerHTML = '';
+    });
+    
+    // Group leads by stage
+    const stages = ['initial-discussion', 'site-visit', 'measurements', 'estimate', 'estimate-approval', 'won', 'lost'];
+    
+    stages.forEach(stage => {
+        const stageLeads = leads.filter(lead => lead.stage === stage);
+        const column = document.querySelector(`.kanban-column[data-stage="${stage}"] .kanban-cards`);
+        const countEl = document.querySelector(`.kanban-column[data-stage="${stage}"] .kanban-count`);
+        
+        countEl.textContent = stageLeads.length;
+        
+        if (stageLeads.length === 0) {
+            column.innerHTML = '<div class="kanban-empty">No leads</div>';
+        } else {
+            column.innerHTML = stageLeads.map((lead, idx) => {
+                const leadIndex = leads.indexOf(lead);
+                const customer = customers.find(c => c.id === lead.customerId);
+                const customerName = customer ? customer.name : 'N/A';
+                const estimateValue = lead.bom ? `$${lead.bom.total.toFixed(2)}` : 'TBD';
+                
+                return `
+                    <div class="kanban-card" draggable="true" data-lead-index="${leadIndex}" 
+                         ondragstart="drag(event)" ondragend="dragEnd(event)">
+                        <div class="kanban-card-header">
+                            <span class="kanban-card-id">${lead.id}</span>
+                        </div>
+                        <div class="kanban-card-title">${lead.name}</div>
+                        <div class="kanban-card-customer">
+                            <i class="fas fa-user"></i> ${customerName}
+                        </div>
+                        <div class="kanban-card-value">
+                            <i class="fas fa-dollar-sign"></i> ${estimateValue}
+                        </div>
+                        <div class="kanban-card-actions">
+                            ${lead.stage === 'estimate' || lead.stage === 'estimate-approval' ? `
+                                <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${leadIndex}, event)">
+                                    <i class="fas fa-calculator"></i>
+                                </button>
+                            ` : ''}
+                            <button class="btn-action btn-edit" onclick="editLead(${leadIndex}, event)">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-action btn-delete" onclick="deleteLead(${leadIndex}, event)">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    });
+}
+
+function renderLeadsTable() {
+    const tbody = document.getElementById('leadsTableBody');
     
     if (leads.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No leads added yet</td></tr>';
@@ -899,105 +959,81 @@ function renderLeads() {
     }).join('');
 }
 
+function renderLeads() {
+    if (currentLeadView === 'kanban') {
+        renderLeadsKanban();
+    } else {
+        renderLeadsTable();
+    }
+}
+
+function switchLeadView(view) {
+    currentLeadView = view;
+    
+    // Update button states
+    document.querySelectorAll('.page-actions .filter-buttons .btn-filter').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    if (view === 'kanban') {
+        document.getElementById('leadsKanban').style.display = 'flex';
+        document.getElementById('leadsTable').style.display = 'none';
+        document.querySelector('button[onclick="switchLeadView(\'kanban\')"]').classList.add('active');
+        renderLeadsKanban();
+    } else {
+        document.getElementById('leadsKanban').style.display = 'none';
+        document.getElementById('leadsTable').style.display = 'block';
+        document.querySelector('button[onclick="switchLeadView(\'table\')"]').classList.add('active');
+        renderLeadsTable();
+    }
+}
+
 function filterLeads(filter) {
-    const tbody = document.getElementById('leadsTable');
-    
-    let filtered = leads;
-    if (filter !== 'all') {
-        filtered = leads.filter(lead => lead.stage === filter);
-    }
-    
-    if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No leads found</td></tr>';
-        return;
-    }
-    
-    tbody.innerHTML = filtered.map((lead, originalIndex) => {
-        const index = leads.indexOf(lead);
-        const customer = customers.find(c => c.id === lead.customerId);
-        const customerName = customer ? customer.name : 'N/A';
-        const estimateValue = lead.bom ? `$${lead.bom.total.toFixed(2)}` : 'TBD';
-        
-        return `
-        <tr class="main-row" data-index="${index}">
-            <td>
-                <i class="fas fa-chevron-right expand-icon" onclick="toggleDetailRow(${index}, 'lead')"></i>
-            </td>
-            <td><strong>${lead.id}</strong></td>
-            <td>${customerName}</td>
-            <td><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></td>
-            <td>${lead.source}</td>
-            <td>${estimateValue}</td>
-            <td>
-                <div class="action-buttons">
-                    ${lead.stage === 'estimate' || lead.stage === 'estimate-approval' ? `
-                        <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${index})">
-                            <i class="fas fa-calculator"></i> BOM
-                        </button>
-                    ` : ''}
-                    <button class="btn-action btn-edit" onclick="editLead(${index})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-action btn-delete" onclick="deleteLead(${index})">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
-                </div>
-            </td>
-        </tr>
-        <tr class="detail-row" id="detail-lead-${index}">
-            <td colspan="7">
-                <div class="detail-content">
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <span class="detail-label">Lead ID</span>
-                            <span class="detail-value">${lead.id}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Stage</span>
-                            <span class="detail-value"><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Customer</span>
-                            <span class="detail-value">${customerName}</span>
-                        </div>
-                    </div>
-                    ${lead.bom ? `
-                        <div style="margin-top: 16px; padding: 12px; background: rgba(20, 184, 166, 0.05); border-radius: 8px;">
-                            <strong>Estimate: $${lead.bom.total.toFixed(2)}</strong> (${lead.bom.items.length} items)
-                        </div>
-                    ` : ''}
-                </div>
-            </td>
-        </tr>
-    `;
-    }).join('');
+    // This function is no longer needed with Kanban view but kept for compatibility
+    switchLeadView('table');
 }
 
 function handleAddLead(e) {
     e.preventDefault();
     
     const lead = {
-        id: 'LEAD-' + String(leads.length + 1).padStart(5, '0'),
+        id: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].id : 'LEAD-' + String(leads.length + 1).padStart(5, '0'),
         name: document.getElementById('leadName').value,
         customerId: document.getElementById('leadCustomer').value,
         source: document.getElementById('leadSource').value,
         stage: document.getElementById('leadStage').value,
         interest: document.getElementById('leadInterest').value,
         notes: document.getElementById('leadNotes').value,
-        createdDate: new Date().toISOString().split('T')[0],
-        bom: null
+        createdDate: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].createdDate : new Date().toISOString().split('T')[0],
+        bom: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].bom : null
     };
     
-    leads.push(lead);
+    if (currentEditingLeadIndex !== null) {
+        // Update existing lead
+        leads[currentEditingLeadIndex] = lead;
+        currentEditingLeadIndex = null;
+    } else {
+        // Add new lead
+        leads.push(lead);
+    }
+    
     saveData();
     renderLeads();
     updateDashboard();
     closeModal('addLeadModal');
     e.target.reset();
+    
+    // Reset button text
+    document.getElementById('leadSubmitText').textContent = 'Add Lead';
+    document.querySelector('#leadSubmitBtn i').className = 'fas fa-plus';
 }
 
-function editLead(index) {
+function editLead(index, event) {
+    if (event) event.stopPropagation();
+    
     const lead = leads[index];
+    currentEditingLeadIndex = index;
+    
     document.getElementById('leadName').value = lead.name;
     document.getElementById('leadCustomer').value = lead.customerId || '';
     document.getElementById('leadSource').value = lead.source;
@@ -1005,13 +1041,16 @@ function editLead(index) {
     document.getElementById('leadInterest').value = lead.interest || '';
     document.getElementById('leadNotes').value = lead.notes || '';
     
-    leads.splice(index, 1);
-    saveData();
+    // Update button text
+    document.getElementById('leadSubmitText').textContent = 'Update Lead';
+    document.querySelector('#leadSubmitBtn i').className = 'fas fa-save';
     
     showAddLeadModal();
 }
 
-function deleteLead(index) {
+function deleteLead(index, event) {
+    if (event) event.stopPropagation();
+    
     if (confirm('Are you sure you want to delete this lead?')) {
         leads.splice(index, 1);
         saveData();
@@ -1063,7 +1102,44 @@ function showAddCustomerModal() {
 
 function showAddLeadModal() {
     updateCustomerSelects();
+    
+    // Reset button text if not editing
+    if (currentEditingLeadIndex === null) {
+        document.getElementById('leadSubmitText').textContent = 'Add Lead';
+        document.querySelector('#leadSubmitBtn i').className = 'fas fa-plus';
+    }
+    
     document.getElementById('addLeadModal').classList.add('active');
+}
+
+// Drag and Drop Functions
+function allowDrop(ev) {
+    ev.preventDefault();
+}
+
+function drag(ev) {
+    ev.dataTransfer.setData("leadIndex", ev.target.dataset.leadIndex);
+    ev.target.classList.add('dragging');
+}
+
+function dragEnd(ev) {
+    ev.target.classList.remove('dragging');
+}
+
+function drop(ev) {
+    ev.preventDefault();
+    const leadIndex = ev.dataTransfer.getData("leadIndex");
+    const newStage = ev.target.closest('.kanban-column').dataset.stage;
+    
+    if (leadIndex && newStage) {
+        const lead = leads[leadIndex];
+        if (lead) {
+            lead.stage = newStage;
+            saveData();
+            renderLeadsKanban();
+            updateDashboard();
+        }
+    }
 }
 
 // Quick Add Customer
@@ -1107,7 +1183,9 @@ function updateCustomerSelects() {
 }
 
 // BOM Management
-function openBOMModal(leadIndex) {
+function openBOMModal(leadIndex, event) {
+    if (event) event.stopPropagation();
+    
     currentBOMLeadIndex = leadIndex;
     const lead = leads[leadIndex];
     const customer = customers.find(c => c.id === lead.customerId);

@@ -246,16 +246,70 @@
                         <i class="fas fa-plus"></i> Add Lead
                     </button>
                     <div class="filter-buttons">
-                        <button class="btn btn-filter active" data-filter-lead="all">All</button>
-                        <button class="btn btn-filter" data-filter-lead="initial-discussion">Initial</button>
-                        <button class="btn btn-filter" data-filter-lead="site-visit">Site Visit</button>
-                        <button class="btn btn-filter" data-filter-lead="estimate">Estimate</button>
-                        <button class="btn btn-filter" data-filter-lead="won">Won</button>
-                        <button class="btn btn-filter" data-filter-lead="lost">Lost</button>
+                        <button class="btn btn-filter" onclick="switchLeadView('table')">
+                            <i class="fas fa-table"></i> Table
+                        </button>
+                        <button class="btn btn-filter active" onclick="switchLeadView('kanban')">
+                            <i class="fas fa-columns"></i> Kanban
+                        </button>
                     </div>
                 </div>
 
-                <div class="table-container">
+                <!-- Kanban View -->
+                <div id="leadsKanban" class="kanban-board">
+                    <div class="kanban-column" data-stage="initial-discussion">
+                        <div class="kanban-header">
+                            <h3>Initial Discussion</h3>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-cards" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="site-visit">
+                        <div class="kanban-header">
+                            <h3>Site Visit</h3>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-cards" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="measurements">
+                        <div class="kanban-header">
+                            <h3>Measurements</h3>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-cards" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="estimate">
+                        <div class="kanban-header">
+                            <h3>Estimate/BOM</h3>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-cards" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="estimate-approval">
+                        <div class="kanban-header">
+                            <h3>Approval</h3>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-cards" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="won">
+                        <div class="kanban-header success">
+                            <h3>Won</h3>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-cards" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="lost">
+                        <div class="kanban-header danger">
+                            <h3>Lost</h3>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-cards" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                    </div>
+                </div>
+
+                <!-- Table View -->
+                <div id="leadsTable" class="table-container" style="display: none;">
                     <table class="data-table">
                         <thead>
                             <tr>
@@ -268,7 +322,7 @@
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="leadsTable">
+                        <tbody id="leadsTableBody">
                             <tr>
                                 <td colspan="7" class="empty-state">No leads added yet</td>
                             </tr>
@@ -547,7 +601,9 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('addLeadModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add Lead</button>
+                    <button type="submit" class="btn btn-primary" id="leadSubmitBtn">
+                        <i class="fas fa-plus"></i> <span id="leadSubmitText">Add Lead</span>
+                    </button>
                 </div>
             </form>
         </div>
