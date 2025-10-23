@@ -4,10 +4,12 @@ let suppliers = [];
 let orders = [];
 let customers = [];
 let leads = [];
+let quotes = [];
 let settings = {};
 let currentBOMLeadIndex = null;
 let currentEditingLeadIndex = null;
 let currentLeadView = 'kanban'; // 'kanban' or 'table'
+let currentQuoteItems = [];
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,12 +33,14 @@ function loadData() {
     const savedOrders = localStorage.getItem('orders');
     const savedCustomers = localStorage.getItem('customers');
     const savedLeads = localStorage.getItem('leads');
+    const savedQuotes = localStorage.getItem('quotes');
     
     if (savedInventory) inventory = JSON.parse(savedInventory);
     if (savedSuppliers) suppliers = JSON.parse(savedSuppliers);
     if (savedOrders) orders = JSON.parse(savedOrders);
     if (savedCustomers) customers = JSON.parse(savedCustomers);
     if (savedLeads) leads = JSON.parse(savedLeads);
+    if (savedQuotes) quotes = JSON.parse(savedQuotes);
 }
 
 // Load settings
@@ -73,6 +77,7 @@ function saveData() {
     localStorage.setItem('orders', JSON.stringify(orders));
     localStorage.setItem('customers', JSON.stringify(customers));
     localStorage.setItem('leads', JSON.stringify(leads));
+    localStorage.setItem('quotes', JSON.stringify(quotes));
 }
 
 // Event Listeners
@@ -693,15 +698,108 @@ function showAddSupplierModal() {
     document.getElementById('addSupplierModal').classList.add('active');
 }
 
+let currentOrderBomData = null;
+
 function showCreateOrderModal() {
     updateSupplierSelects();
     updateItemSelects();
+    currentOrderBomData = null;
+    
+    // Populate BOM select
+    const bomSelect = document.getElementById('orderBomSelect');
+    const bomOptions = [];
+    
+    // Add leads with BOMs
+    leads.forEach((lead, index) => {
+        if (lead.bom && lead.bom.length > 0) {
+            const customer = customers.find(c => c.id === lead.customerId);
+            bomOptions.push(`<option value="lead-${index}">Lead: ${lead.id} - ${lead.name} (${customer ? customer.name : 'Unknown'})</option>`);
+        }
+    });
+    
+    // Add standalone quotes
+    quotes.forEach((quote, index) => {
+        const customer = customers.find(c => c.id === quote.customerId);
+        bomOptions.push(`<option value="quote-${index}">Quote: ${quote.id} - ${quote.projectName} (${customer ? customer.name : 'Unknown'})</option>`);
+    });
+    
+    bomSelect.innerHTML = '<option value="">Select BOM/Quote or Create Manual Order</option>' + bomOptions.join('');
     
     // Set today's date as default
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('orderDate').value = today;
     
     document.getElementById('createOrderModal').classList.add('active');
+}
+
+function loadBomToOrder() {
+    const bomSelect = document.getElementById('orderBomSelect');
+    const selectedValue = bomSelect.value;
+    
+    if (!selectedValue) {
+        currentOrderBomData = null;
+        return;
+    }
+    
+    const [type, index] = selectedValue.split('-');
+    let bomItems = [];
+    
+    if (type === 'lead') {
+        const lead = leads[parseInt(index)];
+        bomItems = lead.bom.map(item => ({
+            name: item.name,
+            maxQty: parseInt(item.quantity),
+            price: parseFloat(item.price)
+        }));
+    } else if (type === 'quote') {
+        const quote = quotes[parseInt(index)];
+        bomItems = quote.items.map(item => ({
+            name: item.name,
+            maxQty: parseInt(item.quantity),
+            price: parseFloat(item.price)
+        }));
+    }
+    
+    currentOrderBomData = {
+        type: type,
+        index: parseInt(index),
+        items: bomItems
+    };
+    
+    // Populate order items from BOM
+    const orderItemsDiv = document.getElementById('orderItems');
+    orderItemsDiv.innerHTML = bomItems.map((item, idx) => `
+        <div class="order-item-row">
+            <select class="order-item-select" required onchange="validateOrderQuantity(this)">
+                <option value="${item.name}">${item.name} (Max: ${item.maxQty})</option>
+            </select>
+            <input type="number" class="order-item-quantity" placeholder="Qty" min="1" max="${item.maxQty}" value="${item.maxQty}" required onchange="validateOrderQuantity(this.parentElement.querySelector('.order-item-select'))">
+            <span class="order-item-max-qty" style="color: var(--text-secondary); font-size: 12px; margin-left: 8px;">Max: ${item.maxQty}</span>
+            <button type="button" class="btn-icon" onclick="removeOrderItem(this)">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function validateOrderQuantity(selectElement) {
+    if (!currentOrderBomData) return true;
+    
+    const row = selectElement.parentElement;
+    const qtyInput = row.querySelector('.order-item-quantity');
+    const selectedItemName = selectElement.value;
+    
+    const bomItem = currentOrderBomData.items.find(item => item.name === selectedItemName);
+    if (bomItem) {
+        const requestedQty = parseInt(qtyInput.value);
+        if (requestedQty > bomItem.maxQty) {
+            alert(`Cannot order more than ${bomItem.maxQty} units of ${selectedItemName} (as specified in BOM)`);
+            qtyInput.value = bomItem.maxQty;
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 function closeModal(modalId) {
@@ -1507,75 +1605,119 @@ function hexToRgb(hex) {
 function renderQuotes() {
     const tbody = document.getElementById('quotesTable');
     
-    // Filter leads that have BOMs (estimates created)
-    const quotedLeads = leads.filter(lead => lead.bom && lead.bom.length > 0);
+    // Combine lead BOMs and standalone quotes
+    const allQuotes = [];
     
-    if (quotedLeads.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No quotes/estimates created yet</td></tr>';
+    // Add lead-based BOMs
+    leads.forEach((lead, leadIndex) => {
+        if (lead.bom && lead.bom.length > 0) {
+            const customer = customers.find(c => c.id === lead.customerId);
+            const totalCost = lead.bom.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.price)), 0);
+            const profit = totalCost * (parseFloat(lead.profitMargin) / 100);
+            const estimateTotal = totalCost + profit;
+            
+            allQuotes.push({
+                id: lead.id,
+                type: 'lead',
+                leadIndex: leadIndex,
+                customer: customer,
+                projectName: lead.name,
+                items: lead.bom,
+                subtotal: totalCost,
+                profit: profit,
+                total: estimateTotal,
+                profitMargin: lead.profitMargin,
+                date: lead.createdDate,
+                stage: lead.stage
+            });
+        }
+    });
+    
+    // Add standalone quotes
+    quotes.forEach((quote, quoteIndex) => {
+        const customer = customers.find(c => c.id === quote.customerId);
+        allQuotes.push({
+            id: quote.id,
+            type: 'standalone',
+            quoteIndex: quoteIndex,
+            customer: customer,
+            projectName: quote.projectName,
+            items: quote.items,
+            subtotal: quote.subtotal,
+            profit: quote.profit,
+            total: quote.total,
+            profitMargin: quote.profitMargin,
+            date: quote.createdDate,
+            linkedLeadId: quote.linkedLeadId
+        });
+    });
+    
+    if (allQuotes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No quotes/estimates created yet</td></tr>';
         return;
     }
     
-    tbody.innerHTML = quotedLeads.map((lead, index) => {
-        const customer = customers.find(c => c.id === lead.customerId);
-        const totalCost = lead.bom.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.price)), 0);
-        const profit = totalCost * (parseFloat(lead.profitMargin) / 100);
-        const estimateTotal = totalCost + profit;
-        
+    tbody.innerHTML = allQuotes.map((quote, index) => {
         return `
         <tr class="main-row" data-index="${index}">
             <td>
                 <i class="fas fa-chevron-right expand-icon" onclick="toggleDetailRow(${index}, 'quote')"></i>
             </td>
-            <td><strong>${lead.id}</strong></td>
-            <td>${customer ? customer.name : 'Unknown'}</td>
-            <td>${customer ? customer.company : 'N/A'}</td>
-            <td>${lead.projectName}</td>
-            <td><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></td>
-            <td>${appSettings.currencySymbol}${estimateTotal.toFixed(2)}</td>
-            <td>${new Date(lead.createdDate).toLocaleDateString()}</td>
+            <td><strong>${quote.id}</strong></td>
+            <td>${quote.projectName}</td>
+            <td>${quote.customer ? quote.customer.name : 'Unknown'}</td>
+            <td>${quote.items.length}</td>
+            <td>${settings.currencySymbol}${quote.total.toFixed(2)}</td>
+            <td>${new Date(quote.date).toLocaleDateString()}</td>
             <td>
                 <div class="action-buttons">
-                    <button class="btn-action btn-view" onclick="viewQuote(${leads.indexOf(lead)})">
+                    <button class="btn-action btn-view" onclick="viewQuotePDF('${quote.type}', ${quote.type === 'lead' ? quote.leadIndex : quote.quoteIndex})">
                         <i class="fas fa-file-pdf"></i> View PDF
                     </button>
+                    ${quote.type === 'standalone' ? `
+                    <button class="btn-action btn-delete" onclick="deleteQuote(${quote.quoteIndex})">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                    ` : ''}
                 </div>
             </td>
         </tr>
         <tr class="detail-row" id="detail-quote-${index}">
-            <td colspan="9">
+            <td colspan="8">
                 <div class="detail-content">
-                    <h4 style="margin-bottom: 12px;">Bill of Materials</h4>
+                    <h4 style="margin-bottom: 12px;">Quote Details</h4>
+                    ${quote.linkedLeadId ? `<p style="color: var(--text-secondary); margin-bottom: 12px;"><i class="fas fa-link"></i> Linked to Lead: ${quote.linkedLeadId}</p>` : ''}
                     <table class="bom-detail-table">
                         <thead>
                             <tr>
                                 <th>Item</th>
-                                <th>Description</th>
+                                <th>Type</th>
                                 <th>Quantity</th>
                                 <th>Unit Price</th>
                                 <th>Total</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${lead.bom.map(item => `
+                            ${quote.items.map(item => `
                                 <tr>
                                     <td>${item.name}</td>
-                                    <td>${item.description || '-'}</td>
+                                    <td>${item.type || '-'}</td>
                                     <td>${item.quantity}</td>
-                                    <td>${appSettings.currencySymbol}${parseFloat(item.price).toFixed(2)}</td>
-                                    <td>${appSettings.currencySymbol}${(parseFloat(item.quantity) * parseFloat(item.price)).toFixed(2)}</td>
+                                    <td>${settings.currencySymbol}${parseFloat(item.price).toFixed(2)}</td>
+                                    <td>${settings.currencySymbol}${(parseFloat(item.quantity) * parseFloat(item.price)).toFixed(2)}</td>
                                 </tr>
                             `).join('')}
                             <tr style="border-top: 2px solid #ddd; font-weight: bold;">
                                 <td colspan="4" style="text-align: right;">Subtotal:</td>
-                                <td>${appSettings.currencySymbol}${totalCost.toFixed(2)}</td>
+                                <td>${settings.currencySymbol}${quote.subtotal.toFixed(2)}</td>
                             </tr>
                             <tr>
-                                <td colspan="4" style="text-align: right;">Profit Margin (${lead.profitMargin}%):</td>
-                                <td>${appSettings.currencySymbol}${profit.toFixed(2)}</td>
+                                <td colspan="4" style="text-align: right;">Profit Margin (${quote.profitMargin}%):</td>
+                                <td>${settings.currencySymbol}${quote.profit.toFixed(2)}</td>
                             </tr>
                             <tr style="font-weight: bold; font-size: 1.1em;">
                                 <td colspan="4" style="text-align: right;">Total Estimate:</td>
-                                <td>${appSettings.currencySymbol}${estimateTotal.toFixed(2)}</td>
+                                <td>${settings.currencySymbol}${quote.total.toFixed(2)}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1586,61 +1728,59 @@ function renderQuotes() {
     }).join('');
 }
 
-function viewQuote(leadIndex) {
-    // Regenerate and open the PDF
-    const lead = leads[leadIndex];
-    if (lead && lead.bom) {
-        generateEstimatePDF(leadIndex);
+function viewQuotePDF(type, index) {
+    if (type === 'lead') {
+        generateEstimatePDF(index);
+    } else {
+        generateQuotePDF(index);
     }
 }
 
 // Settings Management
 function populateSettings() {
-    document.getElementById('settingCompanyName').value = appSettings.companyName;
-    document.getElementById('settingCompanyAddress').value = appSettings.companyAddress;
-    document.getElementById('settingCompanyPhone').value = appSettings.companyPhone;
-    document.getElementById('settingCompanyEmail').value = appSettings.companyEmail;
-    document.getElementById('settingCompanyWebsite').value = appSettings.companyWebsite;
+    document.getElementById('settingsCompanyName').value = settings.companyName || '';
+    document.getElementById('settingsCompanyAddress').value = settings.companyAddress || '';
+    document.getElementById('settingsCompanyPhone').value = settings.companyPhone || '';
+    document.getElementById('settingsCompanyEmail').value = settings.companyEmail || '';
+    document.getElementById('settingsCompanyWebsite').value = settings.companyWebsite || '';
+    document.getElementById('settingsCompanyLogo').value = settings.companyLogo || '';
     
-    document.getElementById('settingCurrency').value = appSettings.currency;
-    document.getElementById('settingCurrencySymbol').value = appSettings.currencySymbol;
-    document.getElementById('settingDateFormat').value = appSettings.dateFormat;
-    document.getElementById('settingTaxRate').value = appSettings.taxRate;
+    document.getElementById('settingsCurrency').value = settings.currencySymbol || '$';
+    document.getElementById('settingsDateFormat').value = settings.dateFormat || 'MM/DD/YYYY';
     
-    document.getElementById('settingQuoteTerms').value = appSettings.quoteTerms;
-    document.getElementById('settingInvoiceTerms').value = appSettings.invoiceTerms;
-    document.getElementById('settingPaymentTerms').value = appSettings.paymentTerms;
+    document.getElementById('settingsQuoteTerms').value = settings.quoteTerms || '';
+    document.getElementById('settingsInvoiceTerms').value = settings.invoiceTerms || '';
+    document.getElementById('settingsQuoteValidity').value = settings.quoteValidity || 30;
+    document.getElementById('settingsPaymentDue').value = settings.paymentDue || 30;
     
-    document.getElementById('settingPrimaryColor').value = appSettings.primaryColor;
-    document.getElementById('settingSecondaryColor').value = appSettings.secondaryColor;
-    document.getElementById('settingQuoteTemplate').value = appSettings.quoteTemplate;
+    document.getElementById('settingsPrimaryColor').value = settings.primaryColor || '#4f46e5';
+    document.getElementById('settingsQuoteTheme').value = settings.quoteTheme || 'modern';
 }
 
 function saveSettings(e) {
     if (e) e.preventDefault();
     
-    appSettings = {
-        companyName: document.getElementById('settingCompanyName').value,
-        companyAddress: document.getElementById('settingCompanyAddress').value,
-        companyPhone: document.getElementById('settingCompanyPhone').value,
-        companyEmail: document.getElementById('settingCompanyEmail').value,
-        companyWebsite: document.getElementById('settingCompanyWebsite').value,
+    settings = {
+        companyName: document.getElementById('settingsCompanyName').value,
+        companyAddress: document.getElementById('settingsCompanyAddress').value,
+        companyPhone: document.getElementById('settingsCompanyPhone').value,
+        companyEmail: document.getElementById('settingsCompanyEmail').value,
+        companyWebsite: document.getElementById('settingsCompanyWebsite').value,
+        companyLogo: document.getElementById('settingsCompanyLogo').value,
         
-        currency: document.getElementById('settingCurrency').value,
-        currencySymbol: document.getElementById('settingCurrencySymbol').value,
-        dateFormat: document.getElementById('settingDateFormat').value,
-        taxRate: parseFloat(document.getElementById('settingTaxRate').value) || 0,
+        currencySymbol: document.getElementById('settingsCurrency').value,
+        dateFormat: document.getElementById('settingsDateFormat').value,
         
-        quoteTerms: document.getElementById('settingQuoteTerms').value,
-        invoiceTerms: document.getElementById('settingInvoiceTerms').value,
-        paymentTerms: document.getElementById('settingPaymentTerms').value,
+        quoteTerms: document.getElementById('settingsQuoteTerms').value,
+        invoiceTerms: document.getElementById('settingsInvoiceTerms').value,
+        quoteValidity: parseInt(document.getElementById('settingsQuoteValidity').value) || 30,
+        paymentDue: parseInt(document.getElementById('settingsPaymentDue').value) || 30,
         
-        primaryColor: document.getElementById('settingPrimaryColor').value,
-        secondaryColor: document.getElementById('settingSecondaryColor').value,
-        quoteTemplate: document.getElementById('settingQuoteTemplate').value
+        primaryColor: document.getElementById('settingsPrimaryColor').value,
+        quoteTheme: document.getElementById('settingsQuoteTheme').value
     };
     
-    localStorage.setItem('appSettings', JSON.stringify(appSettings));
+    localStorage.setItem('appSettings', JSON.stringify(settings));
     
     applySettings();
     
@@ -1650,28 +1790,27 @@ function saveSettings(e) {
 
 function resetSettings() {
     if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
-        appSettings = {
+        settings = {
             companyName: 'Your Company Name',
             companyAddress: '123 Business St, City, Country',
             companyPhone: '+1 (555) 123-4567',
             companyEmail: 'info@yourcompany.com',
             companyWebsite: 'www.yourcompany.com',
+            companyLogo: '',
             
-            currency: 'USD',
             currencySymbol: '$',
             dateFormat: 'MM/DD/YYYY',
-            taxRate: 0,
             
             quoteTerms: 'Quote valid for 30 days. Prices subject to change without notice.',
             invoiceTerms: 'Payment due within 30 days. Late payments subject to 1.5% monthly interest.',
-            paymentTerms: 'Net 30',
+            quoteValidity: 30,
+            paymentDue: 30,
             
-            primaryColor: '#4CAF50',
-            secondaryColor: '#2196F3',
-            quoteTemplate: 'modern'
+            primaryColor: '#4f46e5',
+            quoteTheme: 'modern'
         };
         
-        localStorage.setItem('appSettings', JSON.stringify(appSettings));
+        localStorage.setItem('appSettings', JSON.stringify(settings));
         populateSettings();
         applySettings();
         
@@ -1681,16 +1820,294 @@ function resetSettings() {
 
 function applySettings() {
     // Apply primary color to CSS variables
-    document.documentElement.style.setProperty('--primary-color', appSettings.primaryColor);
-    document.documentElement.style.setProperty('--secondary-color', appSettings.secondaryColor);
+    if (settings.primaryColor) {
+        document.documentElement.style.setProperty('--primary-color', settings.primaryColor);
+    }
     
     // Re-render quotes if on that page to show updated currency
-    if (document.getElementById('quotesPage').classList.contains('active')) {
+    const quotesPage = document.getElementById('quotes');
+    if (quotesPage && quotesPage.classList.contains('active')) {
         renderQuotes();
     }
     
     // Update any visible currency symbols in the dashboard
     updateDashboard();
+}
+
+// Standalone Quote Functions
+function showAddQuoteModal() {
+    currentQuoteItems = [];
+    
+    // Populate customer dropdown
+    const customerSelect = document.getElementById('quoteCustomer');
+    customerSelect.innerHTML = '<option value="">Select Customer</option>' +
+        customers.map(c => `<option value="${c.id}">${c.name} - ${c.company}</option>`).join('');
+    
+    // Populate lead dropdown
+    const leadSelect = document.getElementById('quoteLead');
+    leadSelect.innerHTML = '<option value="">None - Standalone Quote</option>' +
+        leads.map(l => `<option value="${l.id}">${l.id} - ${l.name}</option>`).join('');
+    
+    // Populate inventory items
+    const itemSelect = document.getElementById('quoteItemSelect');
+    itemSelect.innerHTML = '<option value="">Select Item from Inventory</option>' +
+        inventory.map((item, index) => 
+            `<option value="${index}">${item.name} - ${item.category} (${settings.currencySymbol}${item.price})</option>`
+        ).join('');
+    
+    // Reset form
+    document.getElementById('addQuoteForm').reset();
+    document.getElementById('quoteItemsTable').innerHTML = '<tr><td colspan="6" class="empty-state">No items added yet</td></tr>';
+    updateQuoteTotals();
+    
+    showModal('addQuoteModal');
+}
+
+function addQuoteItem() {
+    const itemIndex = document.getElementById('quoteItemSelect').value;
+    const quantity = parseInt(document.getElementById('quoteItemQty').value);
+    
+    if (!itemIndex || !quantity) {
+        alert('Please select an item and quantity');
+        return;
+    }
+    
+    const item = inventory[itemIndex];
+    currentQuoteItems.push({
+        name: item.name,
+        type: item.category,
+        quantity: quantity,
+        price: item.price
+    });
+    
+    renderQuoteItems();
+    updateQuoteTotals();
+    
+    // Reset selection
+    document.getElementById('quoteItemSelect').value = '';
+    document.getElementById('quoteItemQty').value = '1';
+}
+
+function renderQuoteItems() {
+    const tbody = document.getElementById('quoteItemsTable');
+    
+    if (currentQuoteItems.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No items added yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = currentQuoteItems.map((item, index) => `
+        <tr>
+            <td>${item.name}</td>
+            <td>${item.type}</td>
+            <td>${item.quantity}</td>
+            <td>${settings.currencySymbol}${parseFloat(item.price).toFixed(2)}</td>
+            <td>${settings.currencySymbol}${(item.quantity * item.price).toFixed(2)}</td>
+            <td>
+                <button class="btn-action btn-delete" onclick="removeQuoteItem(${index})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function removeQuoteItem(index) {
+    currentQuoteItems.splice(index, 1);
+    renderQuoteItems();
+    updateQuoteTotals();
+}
+
+function updateQuoteTotals() {
+    const subtotal = currentQuoteItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    const profitPercent = parseFloat(document.getElementById('quoteProfitPercent').value) || 0;
+    const profit = subtotal * (profitPercent / 100);
+    const total = subtotal + profit;
+    
+    document.getElementById('quoteSubtotal').textContent = `${settings.currencySymbol}${subtotal.toFixed(2)}`;
+    document.getElementById('quoteProfit').textContent = `${settings.currencySymbol}${profit.toFixed(2)}`;
+    document.getElementById('quoteTotal').textContent = `${settings.currencySymbol}${total.toFixed(2)}`;
+    document.getElementById('quoteProfitPercentDisplay').textContent = profitPercent;
+}
+
+function saveQuote() {
+    const customerId = document.getElementById('quoteCustomer').value;
+    const linkedLeadId = document.getElementById('quoteLead').value;
+    const projectName = document.getElementById('quoteProjectName').value;
+    const profitPercent = parseFloat(document.getElementById('quoteProfitPercent').value) || 0;
+    const notes = document.getElementById('quoteNotes').value;
+    
+    if (!customerId || !projectName) {
+        alert('Please select a customer and enter a project name');
+        return;
+    }
+    
+    if (currentQuoteItems.length === 0) {
+        alert('Please add at least one item to the quote');
+        return;
+    }
+    
+    const subtotal = currentQuoteItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    const profit = subtotal * (profitPercent / 100);
+    const total = subtotal + profit;
+    
+    const quote = {
+        id: 'QUO-' + String(quotes.length + 1).padStart(5, '0'),
+        customerId: customerId,
+        linkedLeadId: linkedLeadId || null,
+        projectName: projectName,
+        items: [...currentQuoteItems],
+        subtotal: subtotal,
+        profit: profit,
+        total: total,
+        profitMargin: profitPercent,
+        notes: notes,
+        createdDate: new Date().toISOString().split('T')[0]
+    };
+    
+    quotes.push(quote);
+    saveData();
+    renderQuotes();
+    closeModal('addQuoteModal');
+    
+    alert('Quote created successfully!');
+}
+
+function deleteQuote(index) {
+    if (confirm('Are you sure you want to delete this quote?')) {
+        quotes.splice(index, 1);
+        saveData();
+        renderQuotes();
+    }
+}
+
+function generateQuotePDF(quoteIndex) {
+    const quote = quoteIndex !== undefined ? quotes[quoteIndex] : null;
+    
+    if (!quote && currentQuoteItems.length === 0) {
+        alert('No quote data available');
+        return;
+    }
+    
+    // If generating from current form
+    const quoteData = quote || {
+        id: 'QUO-DRAFT',
+        customerId: document.getElementById('quoteCustomer').value,
+        projectName: document.getElementById('quoteProjectName').value,
+        items: currentQuoteItems,
+        subtotal: currentQuoteItems.reduce((sum, item) => sum + (item.quantity * item.price), 0),
+        profitMargin: parseFloat(document.getElementById('quoteProfitPercent').value) || 0,
+        notes: document.getElementById('quoteNotes').value,
+        createdDate: new Date().toISOString().split('T')[0]
+    };
+    
+    quoteData.profit = quoteData.subtotal * (quoteData.profitMargin / 100);
+    quoteData.total = quoteData.subtotal + quoteData.profit;
+    
+    const customer = customers.find(c => c.id === quoteData.customerId);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Convert primary color hex to RGB
+    const primaryColorRGB = hexToRgb(settings.primaryColor);
+    
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b);
+    doc.text('QUOTATION', 105, 20, { align: 'center' });
+    
+    // Company Info
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(settings.companyName, 14, 35);
+    doc.text(settings.companyAddress, 14, 40);
+    doc.text(`Phone: ${settings.companyPhone}`, 14, 45);
+    doc.text(`Email: ${settings.companyEmail}`, 14, 50);
+    if (settings.companyWebsite) {
+        doc.text(`Web: ${settings.companyWebsite}`, 14, 55);
+    }
+    
+    // Quote Info
+    doc.setFontSize(10);
+    doc.text(`Quote #: ${quoteData.id}`, 140, 35);
+    doc.text(`Date: ${new Date(quoteData.createdDate).toLocaleDateString()}`, 140, 40);
+    doc.text(`Valid Until: ${new Date(new Date(quoteData.createdDate).getTime() + 30*24*60*60*1000).toLocaleDateString()}`, 140, 45);
+    
+    // Customer Info
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('CUSTOMER INFORMATION', 14, 68);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    
+    if (customer) {
+        doc.text(`Name: ${customer.name}`, 14, 75);
+        doc.text(`Company: ${customer.company}`, 14, 80);
+        doc.text(`Email: ${customer.email}`, 14, 85);
+        doc.text(`Phone: ${customer.phone}`, 14, 90);
+    }
+    
+    // Project Info
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('PROJECT DETAILS', 14, 103);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.text(`Project: ${quoteData.projectName}`, 14, 110);
+    
+    // Items Table
+    const tableData = quoteData.items.map(item => [
+        item.name,
+        item.type,
+        item.quantity.toString(),
+        `${settings.currencySymbol}${parseFloat(item.price).toFixed(2)}`,
+        `${settings.currencySymbol}${(item.quantity * item.price).toFixed(2)}`
+    ]);
+    
+    doc.autoTable({
+        startY: 118,
+        head: [['Item Description', 'Type', 'Qty', 'Unit Price', 'Total']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
+        foot: [
+            ['', '', '', 'Subtotal:', `${settings.currencySymbol}${quoteData.subtotal.toFixed(2)}`],
+            ['', '', '', `Profit (${quoteData.profitMargin}%):`, `${settings.currencySymbol}${quoteData.profit.toFixed(2)}`],
+            ['', '', '', 'TOTAL:', `${settings.currencySymbol}${quoteData.total.toFixed(2)}`]
+        ],
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+    
+    // Terms & Conditions
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('TERMS & CONDITIONS', 14, finalY);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    
+    const termsText = settings.quoteTerms + '\n' + settings.paymentTerms;
+    const splitTerms = doc.splitTextToSize(termsText, 180);
+    doc.text(splitTerms, 14, finalY + 7);
+    
+    if (quoteData.notes) {
+        const notesY = finalY + 7 + (splitTerms.length * 5) + 5;
+        doc.setFont(undefined, 'bold');
+        doc.text('NOTES:', 14, notesY);
+        doc.setFont(undefined, 'normal');
+        const splitNotes = doc.splitTextToSize(quoteData.notes, 180);
+        doc.text(splitNotes, 14, notesY + 5);
+    }
+    
+    // Footer
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFontSize(9);
+    doc.setTextColor(128, 128, 128);
+    doc.text('Thank you for your business!', 105, pageHeight - 20, { align: 'center' });
+    doc.text(`Please contact us at ${settings.companyEmail} if you have any questions.`, 105, pageHeight - 15, { align: 'center' });
+    
+    // Save PDF
+    doc.save(`Quote_${quoteData.id}_${customer ? customer.name.replace(/\s/g, '_') : 'Customer'}.pdf`);
 }
 
 // Helper function to format stage names
