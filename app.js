@@ -688,13 +688,19 @@ function switchPage(pageName) {
         customers: 'Customer Management',
         leads: 'Lead Management',
         quotes: 'Quotes & Estimates',
+        projects: 'Active Projects',
+        finance: 'Financial Overview',
         settings: 'Settings'
     };
     document.getElementById('page-title').textContent = titles[pageName];
     
-    // Load settings when opening settings page
+    // Load data when switching to specific pages
     if (pageName === 'settings') {
         populateSettings();
+    } else if (pageName === 'projects') {
+        renderProjects();
+    } else if (pageName === 'finance') {
+        renderFinance();
     }
 }
 
@@ -1086,26 +1092,43 @@ function renderOrders() {
         return;
     }
     
-    tbody.innerHTML = orders.map((order, index) => `
+    tbody.innerHTML = orders.map((order, index) => {
+        const statusColor = order.status === 'pending' ? '#f59e0b' : 
+                           order.status === 'settled' ? '#10b981' : '#6366f1';
+        const paidAmount = order.paidAmount || 0;
+        const pendingAmount = order.totalAmount - paidAmount;
+        
+        return `
         <tr>
-            <td><strong>${order.id}</strong></td>
+            <td><strong>${order.id}</strong>${order.projectId ? `<br><small style="color: #6366f1;">${order.projectId}</small>` : ''}</td>
             <td>${order.date}</td>
             <td>${order.supplier}</td>
             <td>${order.items.length} item(s)</td>
-            <td>$${order.totalAmount.toFixed(2)}</td>
-            <td><span class="badge badge-${order.status}">${order.status}</span></td>
+            <td>${settings.currencySymbol}${order.totalAmount.toFixed(2)}</td>
+            <td>
+                <span class="status-badge" style="background: ${statusColor};">
+                    ${order.status.toUpperCase()}
+                </span>
+                ${order.status === 'pending' && paidAmount > 0 ? `<br><small>Paid: ${settings.currencySymbol}${paidAmount.toFixed(2)}</small>` : ''}
+            </td>
             <td>
                 <div class="action-buttons">
-                    <button class="btn-action btn-edit" onclick="viewOrder(${index})">
+                    <button class="btn-action btn-view" onclick="viewOrder(${index})">
                         <i class="fas fa-eye"></i> View
                     </button>
+                    ${order.status === 'pending' ? `
+                    <button class="btn-action btn-success" onclick="payPurchaseOrder(${index})" style="background: #10b981;">
+                        <i class="fas fa-dollar-sign"></i> Pay
+                    </button>
+                    ` : ''}
                     <button class="btn-action btn-delete" onclick="deleteOrder(${index})">
                         <i class="fas fa-trash"></i> Delete
                     </button>
                 </div>
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function handleCreateOrder(e) {
@@ -1176,6 +1199,53 @@ function deleteOrder(index) {
         renderOrders();
         updateDashboard();
     }
+}
+
+// Pay Purchase Order
+async function payPurchaseOrder(index) {
+    const order = orders[index];
+    const paidAmount = order.paidAmount || 0;
+    const pendingAmount = order.totalAmount - paidAmount;
+    
+    const payment = prompt(`Pay Purchase Order: ${order.id}\nSupplier: ${order.supplier}\n\nTotal: ${settings.currencySymbol}${order.totalAmount.toFixed(2)}\nPaid: ${settings.currencySymbol}${paidAmount.toFixed(2)}\nPending: ${settings.currencySymbol}${pendingAmount.toFixed(2)}\n\nEnter payment amount:`, pendingAmount.toFixed(2));
+    
+    if (payment === null) return;
+    
+    const amount = parseFloat(payment) || 0;
+    if (amount <= 0) {
+        alert('Please enter a valid payment amount.');
+        return;
+    }
+    
+    if (amount > pendingAmount) {
+        alert('Payment amount exceeds pending balance.');
+        return;
+    }
+    
+    // Update order
+    order.paidAmount = paidAmount + amount;
+    
+    if (order.paidAmount >= order.totalAmount) {
+        order.status = 'settled';
+        order.paidDate = new Date().toISOString().split('T')[0];
+    }
+    
+    // Update project if this PO is linked to a project
+    if (order.projectId) {
+        const project = projects.find(p => p.id === order.projectId);
+        if (project) {
+            project.paidToPOs += amount;
+            project.pendingPOPayments -= amount;
+        }
+    }
+    
+    saveData();
+    await saveDataToFirebase();
+    renderOrders();
+    renderProjects();
+    renderFinance();
+    
+    alert(`✅ Payment recorded!\n\nPO: ${order.id}\nAmount Paid: ${settings.currencySymbol}${amount.toFixed(2)}\nNew Status: ${order.status}\n${order.status === 'settled' ? 'Purchase Order is now fully settled.' : `Remaining: ${settings.currencySymbol}${(order.totalAmount - order.paidAmount).toFixed(2)}`}`);
 }
 
 function addOrderItem() {
@@ -2236,6 +2306,9 @@ function renderQuotes() {
                     <button class="btn-action btn-view" onclick="viewQuotePDF('${quote.type}', ${quote.type === 'lead' ? quote.leadIndex : quote.quoteIndex})">
                         <i class="fas fa-file-pdf"></i> View PDF
                     </button>
+                    <button class="btn-action btn-success" onclick="convertQuoteToProject('${quote.type}', ${quote.type === 'lead' ? quote.leadIndex : quote.quoteIndex})" style="background: #10b981;">
+                        <i class="fas fa-check-circle"></i> Accept & Create Project
+                    </button>
                     ${quote.type === 'standalone' ? `
                     <button class="btn-action btn-delete" onclick="deleteQuote(${quote.quoteIndex})">
                         <i class="fas fa-trash"></i> Delete
@@ -2296,6 +2369,138 @@ function viewQuotePDF(type, index) {
     } else {
         generateQuotePDF(index);
     }
+}
+
+// Convert Quote to Project
+async function convertQuoteToProject(type, index) {
+    let quote, customer, items, total, subtotal, profit;
+    
+    if (type === 'lead') {
+        const lead = leads[index];
+        if (!lead.bom || lead.bom.length === 0) {
+            alert('This lead has no BOM items.');
+            return;
+        }
+        
+        customer = customers.find(c => c.id === lead.customerId);
+        items = lead.bom;
+        subtotal = lead.bom.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.price)), 0);
+        profit = subtotal * (parseFloat(lead.profitMargin) / 100);
+        total = subtotal + profit;
+        
+        quote = {
+            id: lead.id,
+            projectName: lead.name,
+            customerId: lead.customerId,
+            items: items,
+            subtotal: subtotal,
+            profit: profit,
+            total: total,
+            profitMargin: lead.profitMargin
+        };
+        
+        // Update lead stage to 'won'
+        lead.stage = 'won';
+        
+    } else {
+        quote = quotes[index];
+        customer = customers.find(c => c.id === quote.customerId);
+    }
+    
+    if (!customer) {
+        alert('Customer not found for this quote.');
+        return;
+    }
+    
+    // Prompt for advance payment
+    const advancePayment = prompt(`Enter advance payment received from ${customer.name}:\n(Quote Total: ${settings.currencySymbol}${quote.total.toFixed(2)})`, '0');
+    if (advancePayment === null) return;
+    
+    const advance = parseFloat(advancePayment) || 0;
+    
+    // Create project
+    const projectId = 'PRJ-' + String(projects.length + 1).padStart(5, '0');
+    const project = {
+        id: projectId,
+        quoteId: quote.id,
+        projectName: quote.projectName,
+        customerId: quote.customerId,
+        customerName: customer.name,
+        items: quote.items,
+        totalValue: quote.total,
+        advanceReceived: advance,
+        balanceRemaining: quote.total - advance,
+        profitMargin: quote.profitMargin,
+        createdDate: new Date().toISOString().split('T')[0],
+        status: 'active',
+        purchaseOrders: [],
+        totalPOCost: 0,
+        paidToPOs: 0,
+        pendingPOPayments: 0
+    };
+    
+    // Group items by supplier to create POs
+    const supplierGroups = {};
+    
+    quote.items.forEach(item => {
+        // Find the inventory item to get supplier
+        const invItem = inventory.find(inv => inv.name === item.name);
+        const supplier = invItem ? invItem.supplier : 'Unknown Supplier';
+        
+        if (!supplierGroups[supplier]) {
+            supplierGroups[supplier] = [];
+        }
+        
+        supplierGroups[supplier].push({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            total: item.quantity * item.price
+        });
+    });
+    
+    // Create POs for each supplier
+    const createdPOs = [];
+    for (const [supplierName, items] of Object.entries(supplierGroups)) {
+        const poId = 'PO-' + String(orders.length + 1).padStart(5, '0');
+        const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+        
+        const purchaseOrder = {
+            id: poId,
+            projectId: projectId,
+            projectName: quote.projectName,
+            supplier: supplierName,
+            date: new Date().toISOString().split('T')[0],
+            items: items,
+            totalAmount: totalAmount,
+            status: 'pending',
+            paidAmount: 0,
+            paidDate: null,
+            notes: `Auto-generated from project ${projectId}`
+        };
+        
+        orders.push(purchaseOrder);
+        createdPOs.push(poId);
+        project.totalPOCost += totalAmount;
+    }
+    
+    project.purchaseOrders = createdPOs;
+    project.pendingPOPayments = project.totalPOCost;
+    
+    projects.push(project);
+    
+    // Save data
+    saveData();
+    await saveDataToFirebase();
+    
+    // Update views
+    renderQuotes();
+    renderOrders();
+    renderProjects();
+    renderFinance();
+    updateDashboard();
+    
+    alert(`✅ Project Created Successfully!\n\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${settings.currencySymbol}${advance.toFixed(2)}\nBalance: ${settings.currencySymbol}${project.balanceRemaining.toFixed(2)}`);
 }
 
 // Settings Management
@@ -3027,6 +3232,147 @@ async function loadMockData() {
     
     console.log('All views re-rendered');
     alert('Mock data loaded successfully! Check the console for details.');
+}
+
+// Render Projects
+function renderProjects() {
+    const tbody = document.getElementById('projectsTable');
+    
+    if (projects.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No active projects yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = projects.map((project, index) => {
+        const statusColor = project.status === 'active' ? '#10b981' : 
+                           project.status === 'completed' ? '#6366f1' : '#94a3b8';
+        
+        return `
+            <tr>
+                <td><strong>${project.id}</strong></td>
+                <td>${project.projectName}</td>
+                <td>${project.customerName}</td>
+                <td>${settings.currencySymbol}${project.totalValue.toFixed(2)}</td>
+                <td>${settings.currencySymbol}${project.advanceReceived.toFixed(2)}</td>
+                <td>${project.purchaseOrders.length} POs</td>
+                <td>${settings.currencySymbol}${project.paidToPOs.toFixed(2)}</td>
+                <td>
+                    <span class="status-badge" style="background: ${statusColor};">
+                        ${project.status.toUpperCase()}
+                    </span>
+                </td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-action btn-view" onclick="viewProjectDetails(${index})">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="btn-action btn-primary" onclick="recordPayment(${index})">
+                            <i class="fas fa-dollar-sign"></i> Record Payment
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// View Project Details
+function viewProjectDetails(index) {
+    const project = projects[index];
+    const poDetails = project.purchaseOrders.map(poId => {
+        const po = orders.find(o => o.id === poId);
+        return po ? `${po.id} - ${po.supplier}: ${settings.currencySymbol}${po.totalAmount.toFixed(2)} (${po.status})` : poId;
+    }).join('\n');
+    
+    alert(`Project Details:\n\nID: ${project.id}\nName: ${project.projectName}\nCustomer: ${project.customerName}\n\nFinancials:\nTotal Value: ${settings.currencySymbol}${project.totalValue.toFixed(2)}\nAdvance Received: ${settings.currencySymbol}${project.advanceReceived.toFixed(2)}\nBalance Due: ${settings.currencySymbol}${project.balanceRemaining.toFixed(2)}\n\nPurchase Orders:\n${poDetails}\n\nTotal PO Cost: ${settings.currencySymbol}${project.totalPOCost.toFixed(2)}\nPaid: ${settings.currencySymbol}${project.paidToPOs.toFixed(2)}\nPending: ${settings.currencySymbol}${project.pendingPOPayments.toFixed(2)}`);
+}
+
+// Record Payment to Customer
+async function recordPayment(index) {
+    const project = projects[index];
+    const payment = prompt(`Record payment from ${project.customerName}:\n\nBalance Due: ${settings.currencySymbol}${project.balanceRemaining.toFixed(2)}\n\nEnter payment amount:`, '0');
+    
+    if (payment === null) return;
+    
+    const amount = parseFloat(payment) || 0;
+    if (amount <= 0) {
+        alert('Please enter a valid payment amount.');
+        return;
+    }
+    
+    if (amount > project.balanceRemaining) {
+        alert('Payment amount exceeds balance due.');
+        return;
+    }
+    
+    project.advanceReceived += amount;
+    project.balanceRemaining -= amount;
+    
+    if (project.balanceRemaining <= 0) {
+        project.status = 'completed';
+    }
+    
+    saveData();
+    await saveDataToFirebase();
+    renderProjects();
+    renderFinance();
+    
+    alert(`✅ Payment recorded!\n\nAmount: ${settings.currencySymbol}${amount.toFixed(2)}\nNew Balance: ${settings.currencySymbol}${project.balanceRemaining.toFixed(2)}`);
+}
+
+// Render Finance Dashboard
+function renderFinance() {
+    // Calculate totals
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+    let pendingPayments = 0;
+    
+    projects.forEach(project => {
+        totalRevenue += project.advanceReceived;
+        totalExpenses += project.paidToPOs;
+        pendingPayments += project.pendingPOPayments;
+    });
+    
+    const totalProfit = totalRevenue - totalExpenses;
+    
+    // Update summary cards
+    document.getElementById('totalRevenue').textContent = `${settings.currencySymbol}${totalRevenue.toFixed(2)}`;
+    document.getElementById('totalExpenses').textContent = `${settings.currencySymbol}${totalExpenses.toFixed(2)}`;
+    document.getElementById('totalProfit').textContent = `${settings.currencySymbol}${totalProfit.toFixed(2)}`;
+    document.getElementById('pendingPayments').textContent = `${settings.currencySymbol}${pendingPayments.toFixed(2)}`;
+    
+    // Render project breakdown
+    const tbody = document.getElementById('financeProjectsTable');
+    
+    if (projects.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No financial data yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = projects.map(project => {
+        const projectProfit = project.advanceReceived - project.paidToPOs;
+        const profitColor = projectProfit >= 0 ? '#10b981' : '#ef4444';
+        
+        return `
+            <tr>
+                <td><strong>${project.id}</strong><br><small>${project.projectName}</small></td>
+                <td>${project.customerName}</td>
+                <td>${settings.currencySymbol}${project.totalValue.toFixed(2)}</td>
+                <td>${settings.currencySymbol}${project.advanceReceived.toFixed(2)}</td>
+                <td>${settings.currencySymbol}${project.totalPOCost.toFixed(2)}</td>
+                <td>${settings.currencySymbol}${project.paidToPOs.toFixed(2)}</td>
+                <td>${settings.currencySymbol}${project.pendingPOPayments.toFixed(2)}</td>
+                <td style="color: ${profitColor}; font-weight: bold;">
+                    ${settings.currencySymbol}${projectProfit.toFixed(2)}
+                </td>
+                <td>
+                    <span class="status-badge" style="background: ${project.status === 'active' ? '#f59e0b' : '#10b981'};">
+                        ${project.status.toUpperCase()}
+                    </span>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 // Test Firebase Connection
