@@ -5,6 +5,7 @@ let orders = [];
 let customers = [];
 let leads = [];
 let quotes = [];
+let projects = [];
 let settings = {};
 let currentBOMLeadIndex = null;
 let currentEditingLeadIndex = null;
@@ -377,13 +378,15 @@ async function loadDataFromFirebase() {
             customers = data.customers || [];
             leads = data.leads || [];
             quotes = data.quotes || [];
+            projects = data.projects || [];
             console.log('Data loaded from Firebase:', {
                 inventory: inventory.length,
                 suppliers: suppliers.length,
                 orders: orders.length,
                 customers: customers.length,
                 leads: leads.length,
-                quotes: quotes.length
+                quotes: quotes.length,
+                projects: projects.length
             });
         } else {
             console.log('No data document exists in Firebase yet');
@@ -421,8 +424,31 @@ async function loadSettingsFromFirebase() {
                 quoteTheme: 'modern'
             };
         }
+        
+        // Update header with logo and company name
+        updateHeaderLogo();
     } catch (error) {
         console.error('Error loading settings from Firebase:', error);
+    }
+}
+
+// Update header logo and company name
+function updateHeaderLogo() {
+    const headerLogoImg = document.getElementById('headerLogoImg');
+    const headerLogoIcon = document.getElementById('headerLogoIcon');
+    const headerCompanyName = document.getElementById('headerCompanyName');
+    
+    if (settings.companyLogo) {
+        headerLogoImg.src = settings.companyLogo;
+        headerLogoImg.style.display = 'block';
+        headerLogoIcon.style.display = 'none';
+    } else {
+        headerLogoImg.style.display = 'none';
+        headerLogoIcon.style.display = 'block';
+    }
+    
+    if (settings.companyName && settings.companyName !== 'Your Company Name') {
+        headerCompanyName.textContent = settings.companyName;
     }
 }
 
@@ -451,6 +477,7 @@ async function saveDataToFirebase() {
             customers: customers,
             leads: leads,
             quotes: quotes,
+            projects: projects,
             lastUpdated: new Date().toISOString(),
             lastUpdatedBy: currentUser.email
         });
@@ -525,6 +552,7 @@ function loadData() {
     const savedCustomers = localStorage.getItem('customers');
     const savedLeads = localStorage.getItem('leads');
     const savedQuotes = localStorage.getItem('quotes');
+    const savedProjects = localStorage.getItem('projects');
     
     if (savedInventory) inventory = JSON.parse(savedInventory);
     if (savedSuppliers) suppliers = JSON.parse(savedSuppliers);
@@ -532,6 +560,7 @@ function loadData() {
     if (savedCustomers) customers = JSON.parse(savedCustomers);
     if (savedLeads) leads = JSON.parse(savedLeads);
     if (savedQuotes) quotes = JSON.parse(savedQuotes);
+    if (savedProjects) projects = JSON.parse(savedProjects);
 }
 
 // Load settings (fallback)
@@ -569,6 +598,7 @@ function saveData() {
     localStorage.setItem('customers', JSON.stringify(customers));
     localStorage.setItem('leads', JSON.stringify(leads));
     localStorage.setItem('quotes', JSON.stringify(quotes));
+    localStorage.setItem('projects', JSON.stringify(projects));
     
     // Also save to Firebase
     saveDataToFirebase();

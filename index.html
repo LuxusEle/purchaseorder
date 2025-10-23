@@ -73,9 +73,10 @@
     <div class="app-container" id="appContainer" style="display: none;">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
-            <div class="logo">
-                <i class="fas fa-box-open"></i>
-                <h2>PO System</h2>
+            <div class="logo" id="companyLogoHeader">
+                <img id="headerLogoImg" src="" alt="Logo" style="display: none; height: 40px; width: 40px; object-fit: contain; border-radius: 4px; margin-right: 8px;">
+                <i class="fas fa-box-open" id="headerLogoIcon"></i>
+                <h2 id="headerCompanyName">PO System</h2>
             </div>
             <nav class="nav-menu">
                 <a href="#" class="nav-item active" data-page="dashboard">
@@ -105,6 +106,14 @@
                 <a href="#" class="nav-item" data-page="quotes">
                     <i class="fas fa-file-invoice-dollar"></i>
                     <span>Quotes/Estimates</span>
+                </a>
+                <a href="#" class="nav-item" data-page="projects">
+                    <i class="fas fa-project-diagram"></i>
+                    <span>Projects</span>
+                </a>
+                <a href="#" class="nav-item" data-page="finance">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <span>Finance</span>
                 </a>
                 <a href="#" class="nav-item" data-page="settings">
                     <i class="fas fa-cog"></i>
@@ -630,6 +639,109 @@
                             <i class="fas fa-plug"></i> Test Firebase Connection
                         </button>
                     </div>
+                </div>
+            </div>
+
+            <!-- Projects Page -->
+            <div class="page" data-page="projects">
+                <div class="page-header">
+                    <h1><i class="fas fa-project-diagram"></i> Active Projects</h1>
+                    <p>Projects created from accepted quotes</p>
+                </div>
+                <div class="card">
+                    <div id="projectsTableContainer">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Project ID</th>
+                                    <th>Project Name</th>
+                                    <th>Customer</th>
+                                    <th>Total Value</th>
+                                    <th>Advance Received</th>
+                                    <th>POs Issued</th>
+                                    <th>POs Paid</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectsTable">
+                                <tr><td colspan="9" class="empty-state">No active projects yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Finance Page -->
+            <div class="page" data-page="finance">
+                <div class="page-header">
+                    <h1><i class="fas fa-money-bill-wave"></i> Financial Overview</h1>
+                    <p>Track income, expenses, and profitability</p>
+                </div>
+                
+                <!-- Financial Summary Cards -->
+                <div class="stats-grid" style="margin-bottom: 24px;">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <i class="fas fa-hand-holding-usd"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="totalRevenue">Rs 0</div>
+                            <div class="stat-label">Total Revenue (Customer Payments)</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                            <i class="fas fa-receipt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="totalExpenses">Rs 0</div>
+                            <div class="stat-label">Total Expenses (PO Payments)</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="totalProfit">Rs 0</div>
+                            <div class="stat-label">Net Profit</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="pendingPayments">Rs 0</div>
+                            <div class="stat-label">Pending PO Payments</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Project Financial Details -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Project-wise Financial Breakdown</h3>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Project</th>
+                                <th>Customer</th>
+                                <th>Quote Value</th>
+                                <th>Received</th>
+                                <th>PO Cost</th>
+                                <th>Paid to Suppliers</th>
+                                <th>Pending Payments</th>
+                                <th>Profit</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="financeProjectsTable">
+                            <tr><td colspan="9" class="empty-state">No financial data yet</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>
