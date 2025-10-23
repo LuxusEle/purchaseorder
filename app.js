@@ -677,7 +677,14 @@ function switchPage(pageName) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
-    document.getElementById(pageName).classList.add('active');
+    // Try by data-page attribute first, then by ID
+    let targetPage = document.querySelector(`.page[data-page="${pageName}"]`);
+    if (!targetPage) {
+        targetPage = document.getElementById(pageName);
+    }
+    if (targetPage) {
+        targetPage.classList.add('active');
+    }
     
     // Update page title
     const titles = {
