@@ -530,6 +530,10 @@ async function handleLogoUpload(input) {
         document.getElementById('logoPreviewImg').src = downloadURL;
         document.getElementById('logoPreview').style.display = 'block';
         
+        // Update settings object and header immediately
+        settings.companyLogo = downloadURL;
+        updateHeaderLogo();
+        
         alert('Logo uploaded successfully!');
     } catch (error) {
         alert('Error uploading logo: ' + error.message);
@@ -854,6 +858,14 @@ function renderInventory() {
 
 function filterInventory(filter) {
     const tbody = document.getElementById('inventoryTable');
+    
+    // Update button states
+    document.querySelectorAll('.filter-buttons .btn-filter').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('data-filter') === filter) {
+            btn.classList.add('active');
+        }
+    });
     
     let filtered = inventory;
     if (filter !== 'all') {
@@ -1784,8 +1796,10 @@ function handleAddLead(e) {
     }
     
     saveData();
+    saveDataToFirebase();
     renderLeads();
     updateDashboard();
+    updateCustomerSelects(); // Make sure customer dropdown is updated
     closeModal('addLeadModal');
     e.target.reset();
     
@@ -2564,6 +2578,14 @@ function saveSettings(e) {
     saveSettingsToFirebase();
     
     applySettings();
+    updateHeaderLogo();
+    
+    // Re-render all views to apply currency changes
+    renderInventory();
+    renderOrders();
+    renderProjects();
+    renderFinance();
+    updateDashboard();
     
     // Show success message
     alert('Settings saved successfully!');

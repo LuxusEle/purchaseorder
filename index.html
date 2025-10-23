@@ -153,7 +153,7 @@
             <!-- Dashboard Page -->
             <div id="dashboard" class="page active">
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('inventory')" style="cursor: pointer;">
                         <div class="stat-icon blue">
                             <i class="fas fa-boxes"></i>
                         </div>
@@ -162,7 +162,7 @@
                             <p class="stat-number" id="totalItems">0</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('suppliers')" style="cursor: pointer;">
                         <div class="stat-icon green">
                             <i class="fas fa-truck"></i>
                         </div>
@@ -171,7 +171,7 @@
                             <p class="stat-number" id="totalSuppliers">0</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('orders')" style="cursor: pointer;">
                         <div class="stat-icon orange">
                             <i class="fas fa-file-invoice"></i>
                         </div>
@@ -180,7 +180,7 @@
                             <p class="stat-number" id="pendingOrders">0</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('finance')" style="cursor: pointer;">
                         <div class="stat-icon purple">
                             <i class="fas fa-dollar-sign"></i>
                         </div>
@@ -189,7 +189,7 @@
                             <p class="stat-number" id="totalValue">$0</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('customers')" style="cursor: pointer;">
                         <div class="stat-icon red">
                             <i class="fas fa-users"></i>
                         </div>
@@ -198,7 +198,7 @@
                             <p class="stat-number" id="totalCustomers">0</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('leads')" style="cursor: pointer;">
                         <div class="stat-icon teal">
                             <i class="fas fa-user-plus"></i>
                         </div>
@@ -224,9 +224,9 @@
                         <i class="fas fa-plus"></i> Add Item
                     </button>
                     <div class="filter-buttons">
-                        <button class="btn btn-filter active" data-filter="all">All</button>
-                        <button class="btn btn-filter" data-filter="hardware">Hardware</button>
-                        <button class="btn btn-filter" data-filter="service">Services</button>
+                        <button class="btn btn-filter active" onclick="filterInventory('all')" data-filter="all">All</button>
+                        <button class="btn btn-filter" onclick="filterInventory('hardware')" data-filter="hardware">Hardware</button>
+                        <button class="btn btn-filter" onclick="filterInventory('services')" data-filter="services">Services</button>
                     </div>
                 </div>
 
