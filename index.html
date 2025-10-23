@@ -32,6 +32,14 @@
                     <i class="fas fa-file-invoice"></i>
                     <span>Purchase Orders</span>
                 </a>
+                <a href="#" class="nav-item" data-page="customers">
+                    <i class="fas fa-users"></i>
+                    <span>Customers</span>
+                </a>
+                <a href="#" class="nav-item" data-page="leads">
+                    <i class="fas fa-user-plus"></i>
+                    <span>Leads</span>
+                </a>
             </nav>
         </aside>
 
@@ -91,6 +99,24 @@
                         <div class="stat-details">
                             <h3>Total Value</h3>
                             <p class="stat-number" id="totalValue">$0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Total Customers</h3>
+                            <p class="stat-number" id="totalCustomers">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon teal">
+                            <i class="fas fa-user-plus"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Active Leads</h3>
+                            <p class="stat-number" id="totalLeads">0</p>
                         </div>
                     </div>
                 </div>
@@ -181,6 +207,76 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Customers Page -->
+            <div id="customers" class="page">
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showAddCustomerModal()">
+                        <i class="fas fa-plus"></i> Add Customer
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Customer ID</th>
+                                <th>Name</th>
+                                <th>Company</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTable">
+                            <tr>
+                                <td colspan="8" class="empty-state">No customers added yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Leads Page -->
+            <div id="leads" class="page">
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showAddLeadModal()">
+                        <i class="fas fa-plus"></i> Add Lead
+                    </button>
+                    <div class="filter-buttons">
+                        <button class="btn btn-filter active" data-filter-lead="all">All</button>
+                        <button class="btn btn-filter" data-filter-lead="new">New</button>
+                        <button class="btn btn-filter" data-filter-lead="contacted">Contacted</button>
+                        <button class="btn btn-filter" data-filter-lead="qualified">Qualified</button>
+                        <button class="btn btn-filter" data-filter-lead="converted">Converted</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Lead ID</th>
+                                <th>Name</th>
+                                <th>Company</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Source</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leadsTable">
+                            <tr>
+                                <td colspan="9" class="empty-state">No leads added yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -225,6 +321,11 @@
                 <div class="form-group">
                     <label for="itemDescription">Description</label>
                     <textarea id="itemDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group" id="itemImageGroup">
+                    <label for="itemImage">Image (for Hardware)</label>
+                    <input type="file" id="itemImage" accept="image/*">
+                    <div id="imagePreview" class="image-preview"></div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('addItemModal')">Cancel</button>
@@ -312,6 +413,109 @@
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('createOrderModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Customer Modal -->
+    <div id="addCustomerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Customer</h2>
+                <span class="close" onclick="closeModal('addCustomerModal')">&times;</span>
+            </div>
+            <form id="addCustomerForm">
+                <div class="form-group">
+                    <label for="customerName">Customer Name</label>
+                    <input type="text" id="customerName" required>
+                </div>
+                <div class="form-group">
+                    <label for="customerCompany">Company</label>
+                    <input type="text" id="customerCompany" required>
+                </div>
+                <div class="form-group">
+                    <label for="customerEmail">Email</label>
+                    <input type="email" id="customerEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="customerPhone">Phone</label>
+                    <input type="tel" id="customerPhone" required>
+                </div>
+                <div class="form-group">
+                    <label for="customerAddress">Address</label>
+                    <textarea id="customerAddress" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="customerNotes">Notes</label>
+                    <textarea id="customerNotes" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addCustomerModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Customer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Lead Modal -->
+    <div id="addLeadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Lead</h2>
+                <span class="close" onclick="closeModal('addLeadModal')">&times;</span>
+            </div>
+            <form id="addLeadForm">
+                <div class="form-group">
+                    <label for="leadName">Contact Name</label>
+                    <input type="text" id="leadName" required>
+                </div>
+                <div class="form-group">
+                    <label for="leadCompany">Company</label>
+                    <input type="text" id="leadCompany" required>
+                </div>
+                <div class="form-group">
+                    <label for="leadEmail">Email</label>
+                    <input type="email" id="leadEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="leadPhone">Phone</label>
+                    <input type="tel" id="leadPhone" required>
+                </div>
+                <div class="form-group">
+                    <label for="leadSource">Lead Source</label>
+                    <select id="leadSource" required>
+                        <option value="">Select Source</option>
+                        <option value="website">Website</option>
+                        <option value="referral">Referral</option>
+                        <option value="cold-call">Cold Call</option>
+                        <option value="email">Email Campaign</option>
+                        <option value="social-media">Social Media</option>
+                        <option value="trade-show">Trade Show</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="leadStatus">Status</label>
+                    <select id="leadStatus" required>
+                        <option value="new">New</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="qualified">Qualified</option>
+                        <option value="converted">Converted</option>
+                        <option value="lost">Lost</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="leadInterest">Interest/Requirements</label>
+                    <textarea id="leadInterest" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="leadNotes">Notes</label>
+                    <textarea id="leadNotes" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addLeadModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Lead</button>
                 </div>
             </form>
         </div>
