@@ -2974,3 +2974,70 @@ async function loadMockData() {
     console.log('All views re-rendered');
     alert('Mock data loaded successfully! Check the console for details.');
 }
+
+// Test Firebase Connection
+async function testFirebaseConnection() {
+    console.log('=== FIREBASE CONNECTION TEST ===');
+    
+    try {
+        // Check if Firebase is initialized
+        if (!window.firebaseAuth) {
+            console.error('❌ Firebase Auth not initialized');
+            alert('Firebase Auth is not initialized. Check your Firebase config.');
+            return;
+        }
+        console.log('✅ Firebase Auth initialized');
+        
+        if (!window.firebaseDb) {
+            console.error('❌ Firestore not initialized');
+            alert('Firestore is not initialized. Check your Firebase config.');
+            return;
+        }
+        console.log('✅ Firestore initialized');
+        
+        if (!window.firebaseStorage) {
+            console.error('❌ Firebase Storage not initialized');
+            alert('Firebase Storage is not initialized. Check your Firebase config.');
+            return;
+        }
+        console.log('✅ Firebase Storage initialized');
+        
+        // Check authentication state
+        const user = window.firebaseAuth.currentUser;
+        if (!user) {
+            console.warn('⚠️ No user logged in');
+            alert('Please login first to test Firebase connection.');
+            return;
+        }
+        console.log('✅ User logged in:', user.email);
+        console.log('   User ID:', user.uid);
+        console.log('   Company ID:', currentCompanyId);
+        console.log('   User Role:', currentUserRole);
+        
+        // Try to write test data
+        console.log('\nTesting Firestore write...');
+        const testRef = window.firebaseDoc(window.firebaseDb, `companies/${currentCompanyId}/data/test`);
+        await window.firebaseSetDoc(testRef, {
+            test: 'Firebase connection test',
+            timestamp: new Date().toISOString(),
+            userId: user.uid
+        });
+        console.log('✅ Firestore write successful');
+        
+        // Try to read test data
+        console.log('\nTesting Firestore read...');
+        const testDoc = await window.firebaseGetDoc(testRef);
+        if (testDoc.exists()) {
+            console.log('✅ Firestore read successful:', testDoc.data());
+        } else {
+            console.error('❌ Firestore read failed - document not found');
+        }
+        
+        console.log('\n=== ALL TESTS PASSED ✅ ===');
+        alert('✅ Firebase is connected and working!\n\nCheck console for details.');
+        
+    } catch (error) {
+        console.error('❌ Firebase test failed:', error);
+        alert('❌ Firebase connection error:\n\n' + error.message + '\n\nCheck console for details.');
+    }
+}
