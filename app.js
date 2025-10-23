@@ -12,11 +12,25 @@ let currentLeadView = 'kanban'; // 'kanban' or 'table'
 let currentQuoteItems = [];
 let currentUser = null;
 let currentUserId = null;
+let currentCompanyId = null;
+let currentUserRole = 'owner'; // 'owner' or 'staff'
+let staffMembers = [];
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
     // Wait for Firebase to initialize
     setTimeout(() => {
+        console.log('Checking Firebase initialization...');
+        console.log('Firebase Auth:', window.firebaseAuth ? 'Initialized' : 'NOT initialized');
+        console.log('Firebase DB:', window.firebaseDb ? 'Initialized' : 'NOT initialized');
+        console.log('Firebase Storage:', window.firebaseStorage ? 'Initialized' : 'NOT initialized');
+        
+        if (!window.firebaseAuth || !window.firebaseDb || !window.firebaseStorage) {
+            console.error('Firebase not fully initialized!');
+            alert('Firebase initialization error. Please refresh the page.');
+            return;
+        }
+        
         setupAuthentication();
     }, 1000);
 });
@@ -28,18 +42,57 @@ function setupAuthentication() {
         return;
     }
 
+    // Login mode change handler
+    document.getElementById('loginMode').addEventListener('change', async (e) => {
+        const mode = e.target.value;
+        const companyDiv = document.getElementById('companySelectDiv');
+        
+        if (mode === 'staff') {
+            companyDiv.style.display = 'block';
+            await loadAvailableCompanies();
+        } else {
+            companyDiv.style.display = 'none';
+        }
+    });
+
     // Check authentication state
     window.firebaseOnAuthChange(window.firebaseAuth, async (user) => {
         if (user) {
             currentUser = user;
             currentUserId = user.uid;
+            
+            // Determine role and company
+            const loginMode = document.getElementById('loginMode')?.value || 'owner';
+            
+            if (loginMode === 'owner') {
+                currentUserRole = 'owner';
+                currentCompanyId = user.uid; // Owner's company ID is their user ID
+            } else {
+                currentUserRole = 'staff';
+                const selectedCompany = document.getElementById('loginCompanySelect')?.value;
+                if (selectedCompany) {
+                    currentCompanyId = selectedCompany;
+                } else {
+                    alert('Please select a company');
+                    await handleLogout();
+                    return;
+                }
+            }
+            
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('appContainer').style.display = 'flex';
-            document.getElementById('userEmail').textContent = user.email;
+            document.getElementById('userEmail').textContent = user.email + (currentUserRole === 'staff' ? ' (Staff)' : ' (Owner)');
             
             // Load data from Firebase
             await loadDataFromFirebase();
             await loadSettingsFromFirebase();
+            await loadStaffMembers();
+            
+            // Show/hide user management based on role
+            const userMgmtSection = document.getElementById('userManagementSection');
+            if (userMgmtSection) {
+                userMgmtSection.style.display = currentUserRole === 'owner' ? 'block' : 'none';
+            }
             
             // Initialize app
             setupEventListeners();
@@ -50,10 +103,13 @@ function setupAuthentication() {
             renderCustomers();
             renderLeadsKanban();
             renderQuotes();
+            renderStaffMembers();
             applySettings();
         } else {
             currentUser = null;
             currentUserId = null;
+            currentCompanyId = null;
+            currentUserRole = 'owner';
             document.getElementById('loginScreen').style.display = 'flex';
             document.getElementById('appContainer').style.display = 'none';
         }
@@ -64,11 +120,36 @@ function setupAuthentication() {
         e.preventDefault();
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
+        const mode = document.getElementById('loginMode').value;
         
-        try {
-            await window.firebaseSignIn(window.firebaseAuth, email, password);
-        } catch (error) {
-            alert('Login failed: ' + error.message);
+        if (mode === 'staff') {
+            const companyId = document.getElementById('loginCompanySelect').value;
+            if (!companyId) {
+                alert('Please select a company');
+                return;
+            }
+            
+            // Verify user is authorized for this company
+            try {
+                const userCredential = await window.firebaseSignIn(window.firebaseAuth, email, password);
+                const staffDoc = await window.firebaseGetDoc(
+                    window.firebaseDoc(window.firebaseDb, 'companies', companyId, 'staff', userCredential.user.uid)
+                );
+                
+                if (!staffDoc.exists()) {
+                    alert('You are not authorized to access this company');
+                    await handleLogout();
+                    return;
+                }
+            } catch (error) {
+                alert('Login failed: ' + error.message);
+            }
+        } else {
+            try {
+                await window.firebaseSignIn(window.firebaseAuth, email, password);
+            } catch (error) {
+                alert('Login failed: ' + error.message);
+            }
         }
     });
 
@@ -85,14 +166,61 @@ function setupAuthentication() {
             await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'users', userCredential.user.uid), {
                 name: name,
                 email: email,
+                role: 'owner',
                 createdAt: new Date().toISOString()
             });
-            alert('Account created successfully!');
+            
+            // Create company profile
+            await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'companies', userCredential.user.uid), {
+                ownerEmail: email,
+                ownerName: name,
+                createdAt: new Date().toISOString()
+            });
+            
+            alert('Account created successfully! Please login.');
             showLoginForm();
         } catch (error) {
             alert('Registration failed: ' + error.message);
         }
     });
+}
+
+async function loadAvailableCompanies() {
+    const email = document.getElementById('loginEmail').value;
+    if (!email) {
+        alert('Please enter your email first');
+        return;
+    }
+    
+    try {
+        // Query all companies where this email is a staff member
+        const companiesSnapshot = await window.firebaseGetDocs(
+            window.firebaseCollection(window.firebaseDb, 'companies')
+        );
+        
+        const select = document.getElementById('loginCompanySelect');
+        select.innerHTML = '<option value="">Select a company...</option>';
+        
+        let foundCompanies = 0;
+        for (const companyDoc of companiesSnapshot.docs) {
+            const staffDoc = await window.firebaseGetDoc(
+                window.firebaseDoc(window.firebaseDb, 'companies', companyDoc.id, 'staff', email.replace(/[^a-zA-Z0-9]/g, '_'))
+            );
+            
+            if (staffDoc.exists()) {
+                const companyData = companyDoc.data();
+                select.innerHTML += `<option value="${companyDoc.id}">${companyData.ownerName || companyData.ownerEmail}'s Company</option>`;
+                foundCompanies++;
+            }
+        }
+        
+        if (foundCompanies === 0) {
+            select.innerHTML = '<option value="">No companies found</option>';
+            alert('You are not added as staff to any company. Please contact the company owner.');
+        }
+    } catch (error) {
+        console.error('Error loading companies:', error);
+    }
 }
 
 function showLoginForm() {
@@ -116,17 +244,131 @@ async function handleLogout() {
         leads = [];
         quotes = [];
         settings = {};
+        staffMembers = [];
+        currentCompanyId = null;
+        currentUserRole = 'owner';
     } catch (error) {
         alert('Logout failed: ' + error.message);
     }
 }
 
-// Load data from Firebase
-async function loadDataFromFirebase() {
-    if (!currentUserId) return;
+// Staff Management Functions
+async function addStaffMember() {
+    if (currentUserRole !== 'owner') {
+        alert('Only owners can add staff members');
+        return;
+    }
+    
+    const email = document.getElementById('newStaffEmail').value.trim();
+    if (!email) {
+        alert('Please enter an email address');
+        return;
+    }
+    
+    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        alert('Please enter a valid email address');
+        return;
+    }
     
     try {
-        const userDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'userData', currentUserId));
+        // Add to company's staff collection
+        const staffId = email.replace(/[^a-zA-Z0-9]/g, '_');
+        await window.firebaseSetDoc(
+            window.firebaseDoc(window.firebaseDb, 'companies', currentCompanyId, 'staff', staffId),
+            {
+                email: email,
+                addedBy: currentUser.email,
+                addedAt: new Date().toISOString(),
+                status: 'invited'
+            }
+        );
+        
+        document.getElementById('newStaffEmail').value = '';
+        await loadStaffMembers();
+        alert(`Staff member ${email} added successfully!`);
+    } catch (error) {
+        alert('Error adding staff member: ' + error.message);
+    }
+}
+
+async function removeStaffMember(staffId) {
+    if (currentUserRole !== 'owner') {
+        alert('Only owners can remove staff members');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to remove this staff member?')) {
+        return;
+    }
+    
+    try {
+        await window.firebaseDeleteDoc(
+            window.firebaseDoc(window.firebaseDb, 'companies', currentCompanyId, 'staff', staffId)
+        );
+        await loadStaffMembers();
+        alert('Staff member removed successfully');
+    } catch (error) {
+        alert('Error removing staff member: ' + error.message);
+    }
+}
+
+async function loadStaffMembers() {
+    if (currentUserRole !== 'owner' || !currentCompanyId) {
+        return;
+    }
+    
+    try {
+        const staffSnapshot = await window.firebaseGetDocs(
+            window.firebaseCollection(window.firebaseDb, 'companies', currentCompanyId, 'staff')
+        );
+        
+        staffMembers = [];
+        staffSnapshot.forEach(doc => {
+            staffMembers.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        renderStaffMembers();
+    } catch (error) {
+        console.error('Error loading staff members:', error);
+    }
+}
+
+function renderStaffMembers() {
+    const tbody = document.getElementById('staffMembersTable');
+    if (!tbody) return;
+    
+    if (staffMembers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No staff members added yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = staffMembers.map(staff => `
+        <tr>
+            <td>${staff.email}</td>
+            <td><span class="badge badge-${staff.status === 'active' ? 'active' : 'pending'}">${staff.status || 'invited'}</span></td>
+            <td>${new Date(staff.addedAt).toLocaleDateString()}</td>
+            <td>
+                <button class="btn-action btn-delete" onclick="removeStaffMember('${staff.id}')">
+                    <i class="fas fa-trash"></i> Remove
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Load data from Firebase
+async function loadDataFromFirebase() {
+    if (!currentCompanyId) {
+        console.log('No company ID, skipping Firebase load');
+        return;
+    }
+    
+    try {
+        console.log('Loading data from Firebase for company:', currentCompanyId);
+        const userDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'companies', currentCompanyId, 'data', 'main'));
         if (userDoc.exists()) {
             const data = userDoc.data();
             inventory = data.inventory || [];
@@ -135,18 +377,29 @@ async function loadDataFromFirebase() {
             customers = data.customers || [];
             leads = data.leads || [];
             quotes = data.quotes || [];
+            console.log('Data loaded from Firebase:', {
+                inventory: inventory.length,
+                suppliers: suppliers.length,
+                orders: orders.length,
+                customers: customers.length,
+                leads: leads.length,
+                quotes: quotes.length
+            });
+        } else {
+            console.log('No data document exists in Firebase yet');
         }
     } catch (error) {
         console.error('Error loading data from Firebase:', error);
+        alert('Error loading data from Firebase: ' + error.message);
     }
 }
 
 // Load settings from Firebase
 async function loadSettingsFromFirebase() {
-    if (!currentUserId) return;
+    if (!currentCompanyId) return;
     
     try {
-        const settingsDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'userSettings', currentUserId));
+        const settingsDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'companies', currentCompanyId, 'data', 'settings'));
         if (settingsDoc.exists()) {
             settings = settingsDoc.data();
         } else {
@@ -175,29 +428,46 @@ async function loadSettingsFromFirebase() {
 
 // Save data to Firebase
 async function saveDataToFirebase() {
-    if (!currentUserId) return;
+    if (!currentCompanyId) {
+        console.log('No company ID, skipping Firebase save');
+        return;
+    }
     
     try {
-        await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'userData', currentUserId), {
+        console.log('Saving data to Firebase for company:', currentCompanyId);
+        console.log('Data to save:', {
+            inventory: inventory.length,
+            suppliers: suppliers.length,
+            orders: orders.length,
+            customers: customers.length,
+            leads: leads.length,
+            quotes: quotes.length
+        });
+        
+        await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'companies', currentCompanyId, 'data', 'main'), {
             inventory: inventory,
             suppliers: suppliers,
             orders: orders,
             customers: customers,
             leads: leads,
             quotes: quotes,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
+            lastUpdatedBy: currentUser.email
         });
+        
+        console.log('Data successfully saved to Firebase');
     } catch (error) {
         console.error('Error saving data to Firebase:', error);
+        alert('Error saving data to Firebase: ' + error.message);
     }
 }
 
 // Save settings to Firebase
 async function saveSettingsToFirebase() {
-    if (!currentUserId) return;
+    if (!currentCompanyId) return;
     
     try {
-        await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'userSettings', currentUserId), settings);
+        await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'companies', currentCompanyId, 'data', 'settings'), settings);
     } catch (error) {
         console.error('Error saving settings to Firebase:', error);
     }
@@ -224,7 +494,7 @@ async function handleLogoUpload(input) {
     
     try {
         // Upload to Firebase Storage
-        const storageRef = window.firebaseStorageRef(window.firebaseStorage, `logos/${currentUserId}/${file.name}`);
+        const storageRef = window.firebaseStorageRef(window.firebaseStorage, `logos/${currentCompanyId}/${file.name}`);
         await window.firebaseUploadBytes(storageRef, file);
         const downloadURL = await window.firebaseGetDownloadURL(storageRef);
         
@@ -2367,4 +2637,340 @@ function formatStage(stage) {
         'lost': 'Lost'
     };
     return stages[stage] || stage;
+}
+
+// Load Mock Data for Testing
+async function loadMockData() {
+    if (!confirm('This will replace all current data with mock data. Continue?')) {
+        return;
+    }
+    
+    // Mock Suppliers
+    suppliers = [
+        {
+            id: 'SUP-00001',
+            name: 'Tech Components Ltd',
+            contact: 'John Smith',
+            email: 'john@techcomponents.com',
+            phone: '+1-555-0101',
+            address: '123 Tech Street, Silicon Valley, CA 94025',
+            category: 'Electronics'
+        },
+        {
+            id: 'SUP-00002',
+            name: 'Industrial Materials Co',
+            contact: 'Sarah Johnson',
+            email: 'sarah@industrial-materials.com',
+            phone: '+1-555-0102',
+            address: '456 Industry Ave, Detroit, MI 48201',
+            category: 'Raw Materials'
+        },
+        {
+            id: 'SUP-00003',
+            name: 'Office Supplies Inc',
+            contact: 'Mike Chen',
+            email: 'mike@officesupplies.com',
+            phone: '+1-555-0103',
+            address: '789 Commerce Blvd, New York, NY 10001',
+            category: 'Office Equipment'
+        }
+    ];
+    
+    // Mock Inventory
+    inventory = [
+        {
+            id: 'ITM-00001',
+            name: 'LED Display Panel 55"',
+            category: 'Hardware',
+            type: 'Hardware',
+            quantity: 25,
+            unit: 'pcs',
+            price: 450.00,
+            supplier: 'Tech Components Ltd',
+            reorderLevel: 10,
+            image: '',
+            description: 'High-resolution 4K LED display panel'
+        },
+        {
+            id: 'ITM-00002',
+            name: 'Steel Frame Type-A',
+            category: 'Hardware',
+            type: 'Hardware',
+            quantity: 50,
+            unit: 'pcs',
+            price: 85.00,
+            supplier: 'Industrial Materials Co',
+            reorderLevel: 15,
+            image: '',
+            description: 'Heavy-duty steel mounting frame'
+        },
+        {
+            id: 'ITM-00003',
+            name: 'Installation Service',
+            category: 'Service',
+            type: 'Service',
+            quantity: 999,
+            unit: 'hours',
+            price: 75.00,
+            supplier: 'Internal',
+            reorderLevel: 0,
+            image: '',
+            description: 'Professional installation service per hour'
+        },
+        {
+            id: 'ITM-00004',
+            name: 'Power Supply Unit 500W',
+            category: 'Hardware',
+            type: 'Hardware',
+            quantity: 35,
+            unit: 'pcs',
+            price: 120.00,
+            supplier: 'Tech Components Ltd',
+            reorderLevel: 12,
+            image: '',
+            description: 'Industrial-grade power supply'
+        },
+        {
+            id: 'ITM-00005',
+            name: 'Mounting Brackets Set',
+            category: 'Hardware',
+            type: 'Hardware',
+            quantity: 100,
+            unit: 'sets',
+            price: 35.00,
+            supplier: 'Industrial Materials Co',
+            reorderLevel: 20,
+            image: '',
+            description: 'Universal mounting bracket set'
+        },
+        {
+            id: 'ITM-00006',
+            name: 'Consulting Service',
+            category: 'Service',
+            type: 'Service',
+            quantity: 999,
+            unit: 'hours',
+            price: 125.00,
+            supplier: 'Internal',
+            reorderLevel: 0,
+            image: '',
+            description: 'Technical consulting and planning'
+        }
+    ];
+    
+    // Mock Customers
+    customers = [
+        {
+            id: 'CUST-00001',
+            name: 'Robert Williams',
+            company: 'Williams Retail Chain',
+            email: 'rwilliams@williamsretail.com',
+            phone: '+1-555-1001',
+            type: 'Corporate',
+            address: '100 Retail Plaza, Los Angeles, CA 90001',
+            notes: 'Major retail client, prefers bulk orders',
+            createdDate: '2025-01-15'
+        },
+        {
+            id: 'CUST-00002',
+            name: 'Emily Davis',
+            company: 'Davis Home Solutions',
+            email: 'emily@davishome.com',
+            phone: '+1-555-1002',
+            type: 'Domestic',
+            address: '234 Oak Street, Portland, OR 97201',
+            notes: 'Residential client, interested in smart home solutions',
+            createdDate: '2025-02-20'
+        },
+        {
+            id: 'CUST-00003',
+            name: 'James Martinez',
+            company: 'Martinez Construction',
+            email: 'james@martinezconstruction.com',
+            phone: '+1-555-1003',
+            type: 'Corporate',
+            address: '567 Builder Ave, Austin, TX 78701',
+            notes: 'Construction company, regular orders for commercial projects',
+            createdDate: '2025-03-10'
+        },
+        {
+            id: 'CUST-00004',
+            name: 'Lisa Anderson',
+            company: 'Anderson Enterprises',
+            email: 'lisa@andersonent.com',
+            phone: '+1-555-1004',
+            type: 'Corporate',
+            address: '890 Business Park Dr, Seattle, WA 98101',
+            notes: 'Tech startup, modern office setup',
+            createdDate: '2025-04-05'
+        },
+        {
+            id: 'CUST-00005',
+            name: 'David Thompson',
+            company: 'Thompson Residence',
+            email: 'david.t@email.com',
+            phone: '+1-555-1005',
+            type: 'Domestic',
+            address: '321 Maple Lane, Boston, MA 02101',
+            notes: 'Home renovation project',
+            createdDate: '2025-05-12'
+        }
+    ];
+    
+    // Mock Leads
+    leads = [
+        {
+            id: 'LEAD-00001',
+            name: 'Retail Store Display Upgrade',
+            customerId: 'CUST-00001',
+            stage: 'estimate',
+            contactPerson: 'Robert Williams',
+            email: 'rwilliams@williamsretail.com',
+            phone: '+1-555-1001',
+            company: 'Williams Retail Chain',
+            source: 'Website',
+            notes: 'Looking to upgrade all store displays to LED',
+            createdDate: '2025-08-01',
+            bom: [
+                { name: 'LED Display Panel 55"', type: 'Hardware', quantity: 15, price: 450.00 },
+                { name: 'Mounting Brackets Set', type: 'Hardware', quantity: 15, price: 35.00 },
+                { name: 'Installation Service', type: 'Service', quantity: 30, price: 75.00 }
+            ],
+            profitMargin: 25
+        },
+        {
+            id: 'LEAD-00002',
+            name: 'Smart Home Installation',
+            customerId: 'CUST-00002',
+            stage: 'site-visit',
+            contactPerson: 'Emily Davis',
+            email: 'emily@davishome.com',
+            phone: '+1-555-1002',
+            company: 'Davis Home Solutions',
+            source: 'Referral',
+            notes: 'Complete smart home setup',
+            createdDate: '2025-09-15',
+            bom: [],
+            profitMargin: 20
+        },
+        {
+            id: 'LEAD-00003',
+            name: 'Office Building Equipment',
+            customerId: 'CUST-00004',
+            stage: 'initial-discussion',
+            contactPerson: 'Lisa Anderson',
+            email: 'lisa@andersonent.com',
+            phone: '+1-555-1004',
+            company: 'Anderson Enterprises',
+            source: 'Cold Call',
+            notes: 'New office setup, 3 floors',
+            createdDate: '2025-10-01',
+            bom: [],
+            profitMargin: 20
+        },
+        {
+            id: 'LEAD-00004',
+            name: 'Construction Site Power Setup',
+            customerId: 'CUST-00003',
+            stage: 'measurements',
+            contactPerson: 'James Martinez',
+            email: 'james@martinezconstruction.com',
+            phone: '+1-555-1003',
+            company: 'Martinez Construction',
+            source: 'Trade Show',
+            notes: 'Temporary power setup for construction site',
+            createdDate: '2025-10-10',
+            bom: [],
+            profitMargin: 20
+        }
+    ];
+    
+    // Mock Orders
+    orders = [
+        {
+            id: 'PO-00001',
+            supplier: 'Tech Components Ltd',
+            date: '2025-10-15',
+            items: [
+                { item: 'LED Display Panel 55"', quantity: 20 },
+                { item: 'Power Supply Unit 500W', quantity: 15 }
+            ],
+            status: 'Pending',
+            total: 10800,
+            notes: 'Urgent order for upcoming project'
+        },
+        {
+            id: 'PO-00002',
+            supplier: 'Industrial Materials Co',
+            date: '2025-10-18',
+            items: [
+                { item: 'Steel Frame Type-A', quantity: 25 },
+                { item: 'Mounting Brackets Set', quantity: 50 }
+            ],
+            status: 'Delivered',
+            total: 3875,
+            notes: 'Regular monthly order'
+        }
+    ];
+    
+    // Mock Quotes
+    quotes = [
+        {
+            id: 'QUO-00001',
+            customerId: 'CUST-00005',
+            projectName: 'Home Renovation Display Setup',
+            linkedLeadId: '',
+            items: [
+                { name: 'LED Display Panel 55"', type: 'Hardware', quantity: 2, price: 450.00 },
+                { name: 'Installation Service', type: 'Service', quantity: 4, price: 75.00 }
+            ],
+            subtotal: 1200,
+            profitMargin: 20,
+            profit: 240,
+            total: 1440,
+            notes: 'Home theater setup',
+            createdDate: '2025-10-20'
+        }
+    ];
+    
+    console.log('Mock data arrays created');
+    console.log('Suppliers:', suppliers.length);
+    console.log('Inventory:', inventory.length);
+    console.log('Customers:', customers.length);
+    console.log('Leads:', leads.length);
+    console.log('Orders:', orders.length);
+    console.log('Quotes:', quotes.length);
+    
+    // Save to local storage first
+    saveData();
+    console.log('Mock data saved to localStorage');
+    
+    // Save to Firebase
+    console.log('Attempting to save to Firebase...');
+    console.log('Current Company ID:', currentCompanyId);
+    console.log('Current User:', currentUser);
+    
+    if (!currentCompanyId) {
+        alert('Error: No company ID found. Please logout and login again.');
+        return;
+    }
+    
+    await saveDataToFirebase();
+    console.log('Mock data saved to Firebase');
+    
+    // Update supplier and customer selects
+    updateSupplierSelects();
+    updateCustomerSelects();
+    
+    // Re-render all views
+    renderInventory();
+    renderSuppliers();
+    renderOrders();
+    renderCustomers();
+    renderLeadsKanban();
+    renderQuotes();
+    updateDashboard();
+    
+    console.log('All views re-rendered');
+    alert('Mock data loaded successfully! Check the console for details.');
 }

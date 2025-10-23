@@ -25,6 +25,21 @@
                     <label for="loginPassword">Password</label>
                     <input type="password" id="loginPassword" required placeholder="Enter your password">
                 </div>
+                <div class="form-group">
+                    <label for="loginMode">Login As</label>
+                    <select id="loginMode" required>
+                        <option value="owner">My Company (Owner)</option>
+                        <option value="staff">Staff Member</option>
+                    </select>
+                </div>
+                <div id="companySelectDiv" style="display: none;">
+                    <div class="form-group">
+                        <label for="loginCompanySelect">Select Company</label>
+                        <select id="loginCompanySelect">
+                            <option value="">Loading companies...</option>
+                        </select>
+                    </div>
+                </div>
                 <button type="submit" class="btn btn-primary btn-block">
                     <i class="fas fa-sign-in-alt"></i> Sign In
                 </button>
@@ -564,6 +579,42 @@
                         </div>
                     </div>
 
+                    <!-- User Management (Owner Only) -->
+                    <div class="settings-section" id="userManagementSection">
+                        <h3><i class="fas fa-users-cog"></i> User Management</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                            Add staff members to access your company data
+                        </p>
+                        
+                        <div class="form-group">
+                            <label>Add New Staff Member</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="email" id="newStaffEmail" placeholder="staff@example.com" style="flex: 1;">
+                                <button type="button" class="btn btn-primary" onclick="addStaffMember()">
+                                    <i class="fas fa-user-plus"></i> Add Staff
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-container" style="margin-top: 20px;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Status</th>
+                                        <th>Added On</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="staffMembersTable">
+                                    <tr>
+                                        <td colspan="4" class="empty-state">No staff members added yet</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <!-- Save Settings -->
                     <div class="settings-actions">
                         <button class="btn btn-secondary" onclick="resetSettings()">
@@ -571,6 +622,9 @@
                         </button>
                         <button class="btn btn-primary" onclick="saveSettings()">
                             <i class="fas fa-save"></i> Save Settings
+                        </button>
+                        <button class="btn btn-success" onclick="loadMockData()" style="background: #059669;">
+                            <i class="fas fa-database"></i> Load Mock Data (Testing)
                         </button>
                     </div>
                 </div>
@@ -1072,7 +1126,7 @@
             projectId: "purchase-order-37f12",
             storageBucket: "purchase-order-37f12.appspot.com",
             messagingSenderId: "626699734505",
-            appId: "1:626699734505:web:YOUR_APP_ID"
+            appId: "1:626699734505:web:6e8d5b9c3a2f1e4d5a6b7c"
         };
 
         // Initialize Firebase
