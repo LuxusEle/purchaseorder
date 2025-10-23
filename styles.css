@@ -530,6 +530,36 @@ body {
     color: #6b7280;
 }
 
+.badge-initial-discussion {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--info-color);
+}
+
+.badge-site-visit {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning-color);
+}
+
+.badge-measurements {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+}
+
+.badge-estimate {
+    background: rgba(20, 184, 166, 0.1);
+    color: #14b8a6;
+}
+
+.badge-estimate-approval {
+    background: rgba(251, 146, 60, 0.1);
+    color: #fb923c;
+}
+
+.badge-won {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+}
+
 .badge-active {
     background: rgba(16, 185, 129, 0.1);
     color: var(--success-color);
@@ -569,6 +599,14 @@ body {
     overflow-y: auto;
     box-shadow: var(--shadow-lg);
     animation: slideUp 0.3s ease;
+}
+
+.modal-small {
+    max-width: 450px;
+}
+
+.modal-large {
+    max-width: 900px;
 }
 
 @keyframes slideUp {

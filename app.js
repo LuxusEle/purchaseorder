@@ -4,6 +4,7 @@ let suppliers = [];
 let orders = [];
 let customers = [];
 let leads = [];
+let currentBOMLeadIndex = null;
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
@@ -75,6 +76,7 @@ function setupEventListeners() {
     document.getElementById('createOrderForm').addEventListener('submit', handleCreateOrder);
     document.getElementById('addCustomerForm').addEventListener('submit', handleAddCustomer);
     document.getElementById('addLeadForm').addEventListener('submit', handleAddLead);
+    document.getElementById('quickAddCustomerForm').addEventListener('submit', handleQuickAddCustomer);
     
     // Image upload preview
     document.getElementById('itemImage').addEventListener('change', handleImagePreview);
@@ -140,6 +142,10 @@ function updateDashboard() {
     
     const totalValue = inventory.reduce((sum, item) => sum + (item.quantity * item.price), 0);
     document.getElementById('totalValue').textContent = `$${totalValue.toLocaleString()}`;
+    
+    // Count active leads (not won or lost)
+    const activeLeads = leads.filter(l => l.stage !== 'won' && l.stage !== 'lost').length;
+    document.getElementById('totalLeads').textContent = activeLeads;
     
     // Update recent activity
     updateRecentActivity();
@@ -787,117 +793,32 @@ function renderLeads() {
     const tbody = document.getElementById('leadsTable');
     
     if (leads.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No leads added yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No leads added yet</td></tr>';
         return;
     }
     
-    tbody.innerHTML = leads.map((lead, index) => `
-        <tr class="main-row" data-index="${index}">
-            <td>
-                <i class="fas fa-chevron-right expand-icon" onclick="toggleDetailRow(${index}, 'lead')"></i>
-            </td>
-            <td><strong>${lead.id}</strong></td>
-            <td>${lead.name}</td>
-            <td>${lead.company}</td>
-            <td>${lead.email}</td>
-            <td>${lead.phone}</td>
-            <td><span class="badge badge-${lead.status}">${lead.status}</span></td>
-            <td>${lead.source}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn-action btn-edit" onclick="editLead(${index})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-action btn-delete" onclick="deleteLead(${index})">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
-                </div>
-            </td>
-        </tr>
-        <tr class="detail-row" id="detail-lead-${index}">
-            <td colspan="9">
-                <div class="detail-content">
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <span class="detail-label">Lead ID</span>
-                            <span class="detail-value">${lead.id}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Name</span>
-                            <span class="detail-value">${lead.name}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Company</span>
-                            <span class="detail-value">${lead.company}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Email</span>
-                            <span class="detail-value">${lead.email}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Phone</span>
-                            <span class="detail-value">${lead.phone}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Source</span>
-                            <span class="detail-value">${lead.source}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Status</span>
-                            <span class="detail-value"><span class="badge badge-${lead.status}">${lead.status}</span></span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Created</span>
-                            <span class="detail-value">${lead.createdDate}</span>
-                        </div>
-                    </div>
-                    ${lead.interest ? `
-                        <div class="detail-item" style="margin-top: 12px;">
-                            <span class="detail-label">Interest/Requirements</span>
-                            <span class="detail-value">${lead.interest}</span>
-                        </div>
-                    ` : ''}
-                    ${lead.notes ? `
-                        <div class="detail-item" style="margin-top: 12px;">
-                            <span class="detail-label">Notes</span>
-                            <span class="detail-value">${lead.notes}</span>
-                        </div>
-                    ` : ''}
-                </div>
-            </td>
-        </tr>
-    `).join('');
-}
-
-function filterLeads(filter) {
-    const tbody = document.getElementById('leadsTable');
-    
-    let filtered = leads;
-    if (filter !== 'all') {
-        filtered = leads.filter(lead => lead.status === filter);
-    }
-    
-    if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No leads found</td></tr>';
-        return;
-    }
-    
-    tbody.innerHTML = filtered.map((lead, originalIndex) => {
-        const index = leads.indexOf(lead);
+    tbody.innerHTML = leads.map((lead, index) => {
+        const customer = customers.find(c => c.id === lead.customerId);
+        const customerName = customer ? customer.name : 'N/A';
+        const estimateValue = lead.bom ? `$${lead.bom.total.toFixed(2)}` : 'TBD';
+        
         return `
         <tr class="main-row" data-index="${index}">
             <td>
                 <i class="fas fa-chevron-right expand-icon" onclick="toggleDetailRow(${index}, 'lead')"></i>
             </td>
             <td><strong>${lead.id}</strong></td>
-            <td>${lead.name}</td>
-            <td>${lead.company}</td>
-            <td>${lead.email}</td>
-            <td>${lead.phone}</td>
-            <td><span class="badge badge-${lead.status}">${lead.status}</span></td>
+            <td>${customerName}</td>
+            <td><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></td>
             <td>${lead.source}</td>
+            <td>${estimateValue}</td>
             <td>
                 <div class="action-buttons">
+                    ${lead.stage === 'estimate' || lead.stage === 'estimate-approval' ? `
+                        <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${index})">
+                            <i class="fas fa-calculator"></i> BOM
+                        </button>
+                    ` : ''}
                     <button class="btn-action btn-edit" onclick="editLead(${index})">
                         <i class="fas fa-edit"></i> Edit
                     </button>
@@ -908,7 +829,7 @@ function filterLeads(filter) {
             </td>
         </tr>
         <tr class="detail-row" id="detail-lead-${index}">
-            <td colspan="9">
+            <td colspan="7">
                 <div class="detail-content">
                     <div class="detail-grid">
                         <div class="detail-item">
@@ -916,18 +837,49 @@ function filterLeads(filter) {
                             <span class="detail-value">${lead.id}</span>
                         </div>
                         <div class="detail-item">
-                            <span class="detail-label">Name</span>
+                            <span class="detail-label">Project Name</span>
                             <span class="detail-value">${lead.name}</span>
                         </div>
                         <div class="detail-item">
-                            <span class="detail-label">Status</span>
-                            <span class="detail-value"><span class="badge badge-${lead.status}">${lead.status}</span></span>
+                            <span class="detail-label">Customer</span>
+                            <span class="detail-value">${customerName}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Stage</span>
+                            <span class="detail-value"><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></span>
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Source</span>
                             <span class="detail-value">${lead.source}</span>
                         </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Created</span>
+                            <span class="detail-value">${lead.createdDate}</span>
+                        </div>
                     </div>
+                    ${customer ? `
+                        <div style="margin-top: 16px; padding: 12px; background: var(--bg-tertiary); border-radius: 8px;">
+                            <strong style="display: block; margin-bottom: 8px;">Customer Details:</strong>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 14px;">
+                                <div>Company: ${customer.company}</div>
+                                <div>Email: ${customer.email}</div>
+                                <div>Phone: ${customer.phone}</div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${lead.bom ? `
+                        <div style="margin-top: 16px; padding: 12px; background: rgba(20, 184, 166, 0.05); border-radius: 8px; border: 1px solid rgba(20, 184, 166, 0.2);">
+                            <strong style="display: block; margin-bottom: 8px;">Estimate Details:</strong>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 14px;">
+                                <div>Items: ${lead.bom.items.length}</div>
+                                <div>Cost: $${lead.bom.subtotal.toFixed(2)}</div>
+                                <div>Profit: $${lead.bom.profit.toFixed(2)} (${lead.bom.profitPercent}%)</div>
+                            </div>
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(20, 184, 166, 0.2);">
+                                <strong>Total Estimate: $${lead.bom.total.toFixed(2)}</strong>
+                            </div>
+                        </div>
+                    ` : ''}
                     ${lead.interest ? `
                         <div class="detail-item" style="margin-top: 12px;">
                             <span class="detail-label">Interest/Requirements</span>
@@ -947,20 +899,93 @@ function filterLeads(filter) {
     }).join('');
 }
 
+function filterLeads(filter) {
+    const tbody = document.getElementById('leadsTable');
+    
+    let filtered = leads;
+    if (filter !== 'all') {
+        filtered = leads.filter(lead => lead.stage === filter);
+    }
+    
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No leads found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = filtered.map((lead, originalIndex) => {
+        const index = leads.indexOf(lead);
+        const customer = customers.find(c => c.id === lead.customerId);
+        const customerName = customer ? customer.name : 'N/A';
+        const estimateValue = lead.bom ? `$${lead.bom.total.toFixed(2)}` : 'TBD';
+        
+        return `
+        <tr class="main-row" data-index="${index}">
+            <td>
+                <i class="fas fa-chevron-right expand-icon" onclick="toggleDetailRow(${index}, 'lead')"></i>
+            </td>
+            <td><strong>${lead.id}</strong></td>
+            <td>${customerName}</td>
+            <td><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></td>
+            <td>${lead.source}</td>
+            <td>${estimateValue}</td>
+            <td>
+                <div class="action-buttons">
+                    ${lead.stage === 'estimate' || lead.stage === 'estimate-approval' ? `
+                        <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${index})">
+                            <i class="fas fa-calculator"></i> BOM
+                        </button>
+                    ` : ''}
+                    <button class="btn-action btn-edit" onclick="editLead(${index})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-action btn-delete" onclick="deleteLead(${index})">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </td>
+        </tr>
+        <tr class="detail-row" id="detail-lead-${index}">
+            <td colspan="7">
+                <div class="detail-content">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Lead ID</span>
+                            <span class="detail-value">${lead.id}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Stage</span>
+                            <span class="detail-value"><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Customer</span>
+                            <span class="detail-value">${customerName}</span>
+                        </div>
+                    </div>
+                    ${lead.bom ? `
+                        <div style="margin-top: 16px; padding: 12px; background: rgba(20, 184, 166, 0.05); border-radius: 8px;">
+                            <strong>Estimate: $${lead.bom.total.toFixed(2)}</strong> (${lead.bom.items.length} items)
+                        </div>
+                    ` : ''}
+                </div>
+            </td>
+        </tr>
+    `;
+    }).join('');
+}
+
 function handleAddLead(e) {
     e.preventDefault();
     
     const lead = {
         id: 'LEAD-' + String(leads.length + 1).padStart(5, '0'),
         name: document.getElementById('leadName').value,
-        company: document.getElementById('leadCompany').value,
-        email: document.getElementById('leadEmail').value,
-        phone: document.getElementById('leadPhone').value,
+        customerId: document.getElementById('leadCustomer').value,
         source: document.getElementById('leadSource').value,
-        status: document.getElementById('leadStatus').value,
+        stage: document.getElementById('leadStage').value,
         interest: document.getElementById('leadInterest').value,
         notes: document.getElementById('leadNotes').value,
-        createdDate: new Date().toISOString().split('T')[0]
+        createdDate: new Date().toISOString().split('T')[0],
+        bom: null
     };
     
     leads.push(lead);
@@ -974,11 +999,9 @@ function handleAddLead(e) {
 function editLead(index) {
     const lead = leads[index];
     document.getElementById('leadName').value = lead.name;
-    document.getElementById('leadCompany').value = lead.company;
-    document.getElementById('leadEmail').value = lead.email;
-    document.getElementById('leadPhone').value = lead.phone;
+    document.getElementById('leadCustomer').value = lead.customerId || '';
     document.getElementById('leadSource').value = lead.source;
-    document.getElementById('leadStatus').value = lead.status;
+    document.getElementById('leadStage').value = lead.stage;
     document.getElementById('leadInterest').value = lead.interest || '';
     document.getElementById('leadNotes').value = lead.notes || '';
     
@@ -1039,5 +1062,309 @@ function showAddCustomerModal() {
 }
 
 function showAddLeadModal() {
+    updateCustomerSelects();
     document.getElementById('addLeadModal').classList.add('active');
+}
+
+// Quick Add Customer
+function showQuickAddCustomer() {
+    document.getElementById('quickAddCustomerModal').classList.add('active');
+}
+
+function handleQuickAddCustomer(e) {
+    e.preventDefault();
+    
+    const customer = {
+        id: 'CUST-' + String(customers.length + 1).padStart(5, '0'),
+        name: document.getElementById('quickCustomerName').value,
+        company: document.getElementById('quickCustomerCompany').value,
+        email: document.getElementById('quickCustomerEmail').value,
+        phone: document.getElementById('quickCustomerPhone').value,
+        address: '',
+        notes: '',
+        createdDate: new Date().toISOString().split('T')[0]
+    };
+    
+    customers.push(customer);
+    saveData();
+    updateCustomerSelects();
+    
+    // Select the newly added customer
+    document.getElementById('leadCustomer').value = customer.id;
+    
+    closeModal('quickAddCustomerModal');
+    e.target.reset();
+}
+
+function updateCustomerSelects() {
+    const leadCustomerSelect = document.getElementById('leadCustomer');
+    
+    const options = customers.map(c => 
+        `<option value="${c.id}">${c.name} - ${c.company}</option>`
+    ).join('');
+    
+    leadCustomerSelect.innerHTML = '<option value="">Select or Search Customer</option>' + options;
+}
+
+// BOM Management
+function openBOMModal(leadIndex) {
+    currentBOMLeadIndex = leadIndex;
+    const lead = leads[leadIndex];
+    const customer = customers.find(c => c.id === lead.customerId);
+    
+    document.getElementById('bomLeadName').textContent = lead.name;
+    document.getElementById('bomCustomerName').textContent = customer ? customer.name : 'N/A';
+    
+    // Populate inventory select
+    const bomItemSelect = document.getElementById('bomItemSelect');
+    bomItemSelect.innerHTML = '<option value="">Select Item from Inventory</option>' +
+        inventory.map((item, idx) => 
+            `<option value="${idx}">${item.name} - ${item.type} - $${item.price.toFixed(2)}</option>`
+        ).join('');
+    
+    // Load existing BOM if available
+    if (lead.bom) {
+        document.getElementById('bomProfitPercent').value = lead.bom.profitPercent;
+        document.getElementById('bomNotes').value = lead.bom.notes || '';
+        renderBOMItems(lead.bom.items);
+        updateBOMTotals();
+    } else {
+        document.getElementById('bomProfitPercent').value = 20;
+        document.getElementById('bomNotes').value = '';
+        document.getElementById('bomItemsTable').innerHTML = '<tr><td colspan="6" class="empty-state">No items added yet</td></tr>';
+        updateBOMTotals();
+    }
+    
+    document.getElementById('bomModal').classList.add('active');
+}
+
+function addBOMItem() {
+    const selectIndex = document.getElementById('bomItemSelect').value;
+    const quantity = parseInt(document.getElementById('bomItemQty').value) || 1;
+    
+    if (!selectIndex) {
+        alert('Please select an item');
+        return;
+    }
+    
+    const item = inventory[selectIndex];
+    const lead = leads[currentBOMLeadIndex];
+    
+    if (!lead.bom) {
+        lead.bom = {
+            items: [],
+            subtotal: 0,
+            profitPercent: 20,
+            profit: 0,
+            total: 0,
+            notes: ''
+        };
+    }
+    
+    // Check if item already exists in BOM
+    const existingIndex = lead.bom.items.findIndex(i => i.name === item.name);
+    if (existingIndex >= 0) {
+        lead.bom.items[existingIndex].quantity += quantity;
+    } else {
+        lead.bom.items.push({
+            name: item.name,
+            type: item.type,
+            quantity: quantity,
+            unitPrice: item.price
+        });
+    }
+    
+    renderBOMItems(lead.bom.items);
+    updateBOMTotals();
+    
+    document.getElementById('bomItemSelect').value = '';
+    document.getElementById('bomItemQty').value = 1;
+}
+
+function removeBOMItem(index) {
+    const lead = leads[currentBOMLeadIndex];
+    if (lead.bom && lead.bom.items) {
+        lead.bom.items.splice(index, 1);
+        renderBOMItems(lead.bom.items);
+        updateBOMTotals();
+    }
+}
+
+function renderBOMItems(items) {
+    const tbody = document.getElementById('bomItemsTable');
+    
+    if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No items added yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = items.map((item, index) => `
+        <tr>
+            <td>${item.name}</td>
+            <td><span class="badge badge-${item.type}">${item.type}</span></td>
+            <td>${item.quantity}</td>
+            <td>$${item.unitPrice.toFixed(2)}</td>
+            <td>$${(item.quantity * item.unitPrice).toFixed(2)}</td>
+            <td>
+                <button class="btn-icon" onclick="removeBOMItem(${index})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateBOMTotals() {
+    const lead = leads[currentBOMLeadIndex];
+    if (!lead.bom || !lead.bom.items) return;
+    
+    const profitPercent = parseFloat(document.getElementById('bomProfitPercent').value) || 0;
+    document.getElementById('bomProfitPercentDisplay').textContent = profitPercent;
+    
+    const subtotal = lead.bom.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const profit = subtotal * (profitPercent / 100);
+    const total = subtotal + profit;
+    
+    document.getElementById('bomSubtotal').textContent = `$${subtotal.toFixed(2)}`;
+    document.getElementById('bomProfit').textContent = `$${profit.toFixed(2)}`;
+    document.getElementById('bomTotal').textContent = `$${total.toFixed(2)}`;
+}
+
+function saveBOM() {
+    const lead = leads[currentBOMLeadIndex];
+    if (!lead.bom || lead.bom.items.length === 0) {
+        alert('Please add at least one item to the BOM');
+        return;
+    }
+    
+    const profitPercent = parseFloat(document.getElementById('bomProfitPercent').value) || 0;
+    const subtotal = lead.bom.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const profit = subtotal * (profitPercent / 100);
+    const total = subtotal + profit;
+    
+    lead.bom.subtotal = subtotal;
+    lead.bom.profitPercent = profitPercent;
+    lead.bom.profit = profit;
+    lead.bom.total = total;
+    lead.bom.notes = document.getElementById('bomNotes').value;
+    
+    saveData();
+    renderLeads();
+    alert('BOM saved successfully!');
+}
+
+function generateEstimatePDF() {
+    const lead = leads[currentBOMLeadIndex];
+    if (!lead.bom || lead.bom.items.length === 0) {
+        alert('Please add items to the BOM and save before generating PDF');
+        return;
+    }
+    
+    // Save BOM first
+    saveBOM();
+    
+    const customer = customers.find(c => c.id === lead.customerId);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(79, 70, 229);
+    doc.text('ESTIMATE / QUOTATION', 105, 20, { align: 'center' });
+    
+    // Company Info (placeholder)
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Your Company Name', 14, 35);
+    doc.text('Address Line 1, City, State ZIP', 14, 40);
+    doc.text('Phone: (555) 123-4567', 14, 45);
+    doc.text('Email: info@yourcompany.com', 14, 50);
+    
+    // Estimate Info
+    doc.setFontSize(10);
+    doc.text(`Estimate #: ${lead.id}`, 140, 35);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 140, 40);
+    doc.text(`Valid Until: ${new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString()}`, 140, 45);
+    
+    // Customer Info
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('CUSTOMER INFORMATION', 14, 65);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    
+    if (customer) {
+        doc.text(`Name: ${customer.name}`, 14, 72);
+        doc.text(`Company: ${customer.company}`, 14, 77);
+        doc.text(`Email: ${customer.email}`, 14, 82);
+        doc.text(`Phone: ${customer.phone}`, 14, 87);
+    }
+    
+    // Project Info
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('PROJECT DETAILS', 14, 100);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.text(`Project: ${lead.name}`, 14, 107);
+    
+    // Items Table
+    const tableData = lead.bom.items.map(item => [
+        item.name,
+        item.type,
+        item.quantity.toString(),
+        `$${item.unitPrice.toFixed(2)}`,
+        `$${(item.quantity * item.unitPrice).toFixed(2)}`
+    ]);
+    
+    doc.autoTable({
+        startY: 115,
+        head: [['Item Description', 'Type', 'Qty', 'Unit Price', 'Total']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        foot: [
+            ['', '', '', 'Subtotal:', `$${lead.bom.subtotal.toFixed(2)}`],
+            ['', '', '', `Profit (${lead.bom.profitPercent}%):`, `$${lead.bom.profit.toFixed(2)}`],
+            ['', '', '', 'TOTAL:', `$${lead.bom.total.toFixed(2)}`]
+        ],
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+    
+    // Notes/Terms
+    if (lead.bom.notes) {
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('TERMS & CONDITIONS', 14, finalY);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        
+        const splitNotes = doc.splitTextToSize(lead.bom.notes, 180);
+        doc.text(splitNotes, 14, finalY + 7);
+    }
+    
+    // Footer
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFontSize(9);
+    doc.setTextColor(128, 128, 128);
+    doc.text('Thank you for your business!', 105, pageHeight - 20, { align: 'center' });
+    doc.text('Please contact us if you have any questions regarding this estimate.', 105, pageHeight - 15, { align: 'center' });
+    
+    // Save PDF
+    doc.save(`Estimate_${lead.id}_${customer ? customer.name.replace(/\s/g, '_') : 'Customer'}.pdf`);
+}
+
+// Helper function to format stage names
+function formatStage(stage) {
+    const stages = {
+        'initial-discussion': 'Initial Discussion',
+        'site-visit': 'Site Visit',
+        'measurements': 'Measurements',
+        'estimate': 'Estimate/BOM',
+        'estimate-approval': 'Estimate Approval',
+        'won': 'Won',
+        'lost': 'Lost'
+    };
+    return stages[stage] || stage;
 }
