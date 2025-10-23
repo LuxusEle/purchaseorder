@@ -1300,6 +1300,21 @@ function closeModal(modalId) {
     document.getElementById(modalId).classList.remove('active');
 }
 
+// Toggle Company field based on Customer Type
+function toggleCompanyField(typeSelectId, companyGroupId) {
+    const typeSelect = document.getElementById(typeSelectId);
+    const companyGroup = document.getElementById(companyGroupId);
+    
+    if (typeSelect.value === 'Corporate') {
+        companyGroup.style.display = 'block';
+        companyGroup.querySelector('input').required = true;
+    } else {
+        companyGroup.style.display = 'none';
+        companyGroup.querySelector('input').required = false;
+        companyGroup.querySelector('input').value = '';
+    }
+}
+
 // Customer Management
 function renderCustomers() {
     const tbody = document.getElementById('customersTable');
@@ -1382,13 +1397,14 @@ function renderCustomers() {
 function handleAddCustomer(e) {
     e.preventDefault();
     
+    const customerType = document.getElementById('customerType').value;
     const customer = {
         id: 'CUST-' + String(customers.length + 1).padStart(5, '0'),
         name: document.getElementById('customerName').value,
-        company: document.getElementById('customerCompany').value,
+        company: customerType === 'Corporate' ? document.getElementById('customerCompany').value : '',
         email: document.getElementById('customerEmail').value,
         phone: document.getElementById('customerPhone').value,
-        type: document.getElementById('customerType').value,
+        type: customerType,
         address: document.getElementById('customerAddress').value,
         notes: document.getElementById('customerNotes').value,
         createdDate: new Date().toISOString().split('T')[0]
@@ -1396,8 +1412,10 @@ function handleAddCustomer(e) {
     
     customers.push(customer);
     saveData();
+    saveDataToFirebase();
     renderCustomers();
     updateDashboard();
+    updateCustomerSelects();
     closeModal('addCustomerModal');
     e.target.reset();
 }
@@ -1405,10 +1423,14 @@ function handleAddCustomer(e) {
 function editCustomer(index) {
     const customer = customers[index];
     document.getElementById('customerName').value = customer.name;
-    document.getElementById('customerCompany').value = customer.company;
+    document.getElementById('customerType').value = customer.type || 'Other';
+    
+    // Trigger company field visibility
+    toggleCompanyField('customerType', 'customerCompanyGroup');
+    
+    document.getElementById('customerCompany').value = customer.company || '';
     document.getElementById('customerEmail').value = customer.email;
     document.getElementById('customerPhone').value = customer.phone;
-    document.getElementById('customerType').value = customer.type || 'Other';
     document.getElementById('customerAddress').value = customer.address || '';
     document.getElementById('customerNotes').value = customer.notes || '';
     
@@ -1787,13 +1809,14 @@ function showQuickAddCustomer() {
 function handleQuickAddCustomer(e) {
     e.preventDefault();
     
+    const customerType = document.getElementById('quickCustomerType').value;
     const customer = {
         id: 'CUST-' + String(customers.length + 1).padStart(5, '0'),
         name: document.getElementById('quickCustomerName').value,
-        company: document.getElementById('quickCustomerCompany').value,
+        company: customerType === 'Corporate' ? document.getElementById('quickCustomerCompany').value : '',
         email: document.getElementById('quickCustomerEmail').value,
         phone: document.getElementById('quickCustomerPhone').value,
-        type: document.getElementById('quickCustomerType').value,
+        type: customerType,
         address: '',
         notes: '',
         createdDate: new Date().toISOString().split('T')[0]
@@ -1801,6 +1824,7 @@ function handleQuickAddCustomer(e) {
     
     customers.push(customer);
     saveData();
+    saveDataToFirebase();
     updateCustomerSelects();
     
     // Select the newly added customer

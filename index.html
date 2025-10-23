@@ -796,16 +796,17 @@
                     <input type="text" id="customerName" required>
                 </div>
                 <div class="form-group">
-                    <label for="customerCompany">Company</label>
-                    <input type="text" id="customerCompany" required>
-                </div>
-                <div class="form-group">
                     <label for="customerType">Customer Type</label>
-                    <select id="customerType" required>
-                        <option value="domestic">Domestic</option>
-                        <option value="corporate">Corporate</option>
-                        <option value="other">Other</option>
+                    <select id="customerType" required onchange="toggleCompanyField('customerType', 'customerCompanyGroup')">
+                        <option value="">Select Type</option>
+                        <option value="Domestic">Domestic</option>
+                        <option value="Corporate">Corporate</option>
+                        <option value="Other">Other</option>
                     </select>
+                </div>
+                <div class="form-group" id="customerCompanyGroup" style="display: none;">
+                    <label for="customerCompany">Company</label>
+                    <input type="text" id="customerCompany">
                 </div>
                 <div class="form-group">
                     <label for="customerEmail">Email</label>
@@ -844,8 +845,17 @@
                     <input type="text" id="quickCustomerName" required>
                 </div>
                 <div class="form-group">
+                    <label for="quickCustomerType">Customer Type</label>
+                    <select id="quickCustomerType" required onchange="toggleCompanyField('quickCustomerType', 'quickCustomerCompanyGroup')">
+                        <option value="">Select Type</option>
+                        <option value="Domestic">Domestic</option>
+                        <option value="Corporate">Corporate</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group" id="quickCustomerCompanyGroup" style="display: none;">
                     <label for="quickCustomerCompany">Company</label>
-                    <input type="text" id="quickCustomerCompany" required>
+                    <input type="text" id="quickCustomerCompany">
                 </div>
                 <div class="form-group">
                     <label for="quickCustomerEmail">Email</label>
