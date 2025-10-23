@@ -4,6 +4,7 @@ let suppliers = [];
 let orders = [];
 let customers = [];
 let leads = [];
+let settings = {};
 let currentBOMLeadIndex = null;
 let currentEditingLeadIndex = null;
 let currentLeadView = 'kanban'; // 'kanban' or 'table'
@@ -11,6 +12,7 @@ let currentLeadView = 'kanban'; // 'kanban' or 'table'
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
     loadData();
+    loadSettings();
     setupEventListeners();
     updateDashboard();
     renderInventory();
@@ -18,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     renderOrders();
     renderCustomers();
     renderLeadsKanban();
+    renderQuotes();
+    applySettings();
 });
 
 // Load data from localStorage
@@ -33,6 +37,33 @@ function loadData() {
     if (savedOrders) orders = JSON.parse(savedOrders);
     if (savedCustomers) customers = JSON.parse(savedCustomers);
     if (savedLeads) leads = JSON.parse(savedLeads);
+}
+
+// Load settings
+function loadSettings() {
+    const savedSettings = localStorage.getItem('appSettings');
+    if (savedSettings) {
+        settings = JSON.parse(savedSettings);
+    } else {
+        // Default settings
+        settings = {
+            companyName: 'Your Company Name',
+            companyEmail: 'info@company.com',
+            companyPhone: '(555) 123-4567',
+            companyWebsite: 'www.company.com',
+            companyAddress: 'Street Address, City, State ZIP',
+            companyLogo: '',
+            currency: '$',
+            dateFormat: 'MM/DD/YYYY',
+            quoteTerms: 'Payment terms: 50% upfront, 50% on completion.\nDelivery: 2-4 weeks from order confirmation.\nWarranty: 1 year parts and labor.',
+            invoiceTerms: 'Payment due within 30 days.\nLate fee: 2% per month on overdue balance.\nAccepted payment methods: Cash, Check, Bank Transfer.',
+            quoteValidity: 30,
+            paymentDue: 30,
+            primaryColor: '#4f46e5',
+            quoteTheme: 'modern',
+            invoiceTheme: 'modern'
+        };
+    }
 }
 
 // Save data to localStorage
@@ -126,9 +157,16 @@ function switchPage(pageName) {
         suppliers: 'Supplier Management',
         orders: 'Purchase Orders',
         customers: 'Customer Management',
-        leads: 'Lead Management'
+        leads: 'Lead Management',
+        quotes: 'Quotes & Estimates',
+        settings: 'Settings'
     };
     document.getElementById('page-title').textContent = titles[pageName];
+    
+    // Load settings when opening settings page
+    if (pageName === 'settings') {
+        populateSettings();
+    }
 }
 
 // Dashboard Updates
@@ -675,7 +713,7 @@ function renderCustomers() {
     const tbody = document.getElementById('customersTable');
     
     if (customers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No customers added yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No customers added yet</td></tr>';
         return;
     }
     
@@ -689,6 +727,7 @@ function renderCustomers() {
             <td>${customer.company}</td>
             <td>${customer.email}</td>
             <td>${customer.phone}</td>
+            <td><span class="badge badge-${(customer.type || 'other').toLowerCase()}">${customer.type || 'Other'}</span></td>
             <td><span class="badge badge-active">Active</span></td>
             <td>
                 <div class="action-buttons">
@@ -702,7 +741,7 @@ function renderCustomers() {
             </td>
         </tr>
         <tr class="detail-row" id="detail-customer-${index}">
-            <td colspan="8">
+            <td colspan="9">
                 <div class="detail-content">
                     <div class="detail-grid">
                         <div class="detail-item">
@@ -724,6 +763,10 @@ function renderCustomers() {
                         <div class="detail-item">
                             <span class="detail-label">Phone</span>
                             <span class="detail-value">${customer.phone}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Type</span>
+                            <span class="detail-value">${customer.type || 'Other'}</span>
                         </div>
                     </div>
                     ${customer.address ? `
@@ -753,6 +796,7 @@ function handleAddCustomer(e) {
         company: document.getElementById('customerCompany').value,
         email: document.getElementById('customerEmail').value,
         phone: document.getElementById('customerPhone').value,
+        type: document.getElementById('customerType').value,
         address: document.getElementById('customerAddress').value,
         notes: document.getElementById('customerNotes').value,
         createdDate: new Date().toISOString().split('T')[0]
@@ -772,6 +816,7 @@ function editCustomer(index) {
     document.getElementById('customerCompany').value = customer.company;
     document.getElementById('customerEmail').value = customer.email;
     document.getElementById('customerPhone').value = customer.phone;
+    document.getElementById('customerType').value = customer.type || 'Other';
     document.getElementById('customerAddress').value = customer.address || '';
     document.getElementById('customerNotes').value = customer.notes || '';
     
@@ -1156,6 +1201,7 @@ function handleQuickAddCustomer(e) {
         company: document.getElementById('quickCustomerCompany').value,
         email: document.getElementById('quickCustomerEmail').value,
         phone: document.getElementById('quickCustomerPhone').value,
+        type: document.getElementById('quickCustomerType').value,
         address: '',
         notes: '',
         createdDate: new Date().toISOString().split('T')[0]
@@ -1345,18 +1391,24 @@ function generateEstimatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
+    // Convert primary color hex to RGB
+    const primaryColorRGB = hexToRgb(appSettings.primaryColor);
+    
     // Header
     doc.setFontSize(24);
-    doc.setTextColor(79, 70, 229);
+    doc.setTextColor(primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b);
     doc.text('ESTIMATE / QUOTATION', 105, 20, { align: 'center' });
     
-    // Company Info (placeholder)
+    // Company Info (from settings)
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
-    doc.text('Your Company Name', 14, 35);
-    doc.text('Address Line 1, City, State ZIP', 14, 40);
-    doc.text('Phone: (555) 123-4567', 14, 45);
-    doc.text('Email: info@yourcompany.com', 14, 50);
+    doc.text(appSettings.companyName, 14, 35);
+    doc.text(appSettings.companyAddress, 14, 40);
+    doc.text(`Phone: ${appSettings.companyPhone}`, 14, 45);
+    doc.text(`Email: ${appSettings.companyEmail}`, 14, 50);
+    if (appSettings.companyWebsite) {
+        doc.text(`Web: ${appSettings.companyWebsite}`, 14, 55);
+    }
     
     // Estimate Info
     doc.setFontSize(10);
@@ -1367,59 +1419,67 @@ function generateEstimatePDF() {
     // Customer Info
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('CUSTOMER INFORMATION', 14, 65);
+    doc.text('CUSTOMER INFORMATION', 14, 68);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
     
     if (customer) {
-        doc.text(`Name: ${customer.name}`, 14, 72);
-        doc.text(`Company: ${customer.company}`, 14, 77);
-        doc.text(`Email: ${customer.email}`, 14, 82);
-        doc.text(`Phone: ${customer.phone}`, 14, 87);
+        doc.text(`Name: ${customer.name}`, 14, 75);
+        doc.text(`Company: ${customer.company}`, 14, 80);
+        doc.text(`Email: ${customer.email}`, 14, 85);
+        doc.text(`Phone: ${customer.phone}`, 14, 90);
     }
     
     // Project Info
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('PROJECT DETAILS', 14, 100);
+    doc.text('PROJECT DETAILS', 14, 103);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
-    doc.text(`Project: ${lead.name}`, 14, 107);
+    doc.text(`Project: ${lead.name}`, 14, 110);
     
     // Items Table
     const tableData = lead.bom.items.map(item => [
         item.name,
         item.type,
         item.quantity.toString(),
-        `$${item.unitPrice.toFixed(2)}`,
-        `$${(item.quantity * item.unitPrice).toFixed(2)}`
+        `${appSettings.currencySymbol}${item.unitPrice.toFixed(2)}`,
+        `${appSettings.currencySymbol}${(item.quantity * item.unitPrice).toFixed(2)}`
     ]);
     
     doc.autoTable({
-        startY: 115,
+        startY: 118,
         head: [['Item Description', 'Type', 'Qty', 'Unit Price', 'Total']],
         body: tableData,
         theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229] },
+        headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
         foot: [
-            ['', '', '', 'Subtotal:', `$${lead.bom.subtotal.toFixed(2)}`],
-            ['', '', '', `Profit (${lead.bom.profitPercent}%):`, `$${lead.bom.profit.toFixed(2)}`],
-            ['', '', '', 'TOTAL:', `$${lead.bom.total.toFixed(2)}`]
+            ['', '', '', 'Subtotal:', `${appSettings.currencySymbol}${lead.bom.subtotal.toFixed(2)}`],
+            ['', '', '', `Profit (${lead.bom.profitPercent}%):`, `${appSettings.currencySymbol}${lead.bom.profit.toFixed(2)}`],
+            ['', '', '', 'TOTAL:', `${appSettings.currencySymbol}${lead.bom.total.toFixed(2)}`]
         ],
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
     
-    // Notes/Terms
+    // Terms & Conditions
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('TERMS & CONDITIONS', 14, finalY);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    
+    const termsText = appSettings.quoteTerms + '\n' + appSettings.paymentTerms;
+    const splitTerms = doc.splitTextToSize(termsText, 180);
+    doc.text(splitTerms, 14, finalY + 7);
+    
     if (lead.bom.notes) {
-        const finalY = doc.lastAutoTable.finalY + 10;
-        doc.setFontSize(12);
+        const notesY = finalY + 7 + (splitTerms.length * 5) + 5;
         doc.setFont(undefined, 'bold');
-        doc.text('TERMS & CONDITIONS', 14, finalY);
+        doc.text('NOTES:', 14, notesY);
         doc.setFont(undefined, 'normal');
-        doc.setFontSize(10);
-        
         const splitNotes = doc.splitTextToSize(lead.bom.notes, 180);
-        doc.text(splitNotes, 14, finalY + 7);
+        doc.text(splitNotes, 14, notesY + 5);
     }
     
     // Footer
@@ -1427,10 +1487,210 @@ function generateEstimatePDF() {
     doc.setFontSize(9);
     doc.setTextColor(128, 128, 128);
     doc.text('Thank you for your business!', 105, pageHeight - 20, { align: 'center' });
-    doc.text('Please contact us if you have any questions regarding this estimate.', 105, pageHeight - 15, { align: 'center' });
+    doc.text(`Please contact us at ${appSettings.companyEmail} if you have any questions.`, 105, pageHeight - 15, { align: 'center' });
     
     // Save PDF
     doc.save(`Estimate_${lead.id}_${customer ? customer.name.replace(/\s/g, '_') : 'Customer'}.pdf`);
+}
+
+// Helper function to convert hex to RGB
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 79, g: 70, b: 229 }; // Default color if parsing fails
+}
+
+// Quotes/Estimates Management
+function renderQuotes() {
+    const tbody = document.getElementById('quotesTable');
+    
+    // Filter leads that have BOMs (estimates created)
+    const quotedLeads = leads.filter(lead => lead.bom && lead.bom.length > 0);
+    
+    if (quotedLeads.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No quotes/estimates created yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = quotedLeads.map((lead, index) => {
+        const customer = customers.find(c => c.id === lead.customerId);
+        const totalCost = lead.bom.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.price)), 0);
+        const profit = totalCost * (parseFloat(lead.profitMargin) / 100);
+        const estimateTotal = totalCost + profit;
+        
+        return `
+        <tr class="main-row" data-index="${index}">
+            <td>
+                <i class="fas fa-chevron-right expand-icon" onclick="toggleDetailRow(${index}, 'quote')"></i>
+            </td>
+            <td><strong>${lead.id}</strong></td>
+            <td>${customer ? customer.name : 'Unknown'}</td>
+            <td>${customer ? customer.company : 'N/A'}</td>
+            <td>${lead.projectName}</td>
+            <td><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></td>
+            <td>${appSettings.currencySymbol}${estimateTotal.toFixed(2)}</td>
+            <td>${new Date(lead.createdDate).toLocaleDateString()}</td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-action btn-view" onclick="viewQuote(${leads.indexOf(lead)})">
+                        <i class="fas fa-file-pdf"></i> View PDF
+                    </button>
+                </div>
+            </td>
+        </tr>
+        <tr class="detail-row" id="detail-quote-${index}">
+            <td colspan="9">
+                <div class="detail-content">
+                    <h4 style="margin-bottom: 12px;">Bill of Materials</h4>
+                    <table class="bom-detail-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Description</th>
+                                <th>Quantity</th>
+                                <th>Unit Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${lead.bom.map(item => `
+                                <tr>
+                                    <td>${item.name}</td>
+                                    <td>${item.description || '-'}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>${appSettings.currencySymbol}${parseFloat(item.price).toFixed(2)}</td>
+                                    <td>${appSettings.currencySymbol}${(parseFloat(item.quantity) * parseFloat(item.price)).toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                            <tr style="border-top: 2px solid #ddd; font-weight: bold;">
+                                <td colspan="4" style="text-align: right;">Subtotal:</td>
+                                <td>${appSettings.currencySymbol}${totalCost.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" style="text-align: right;">Profit Margin (${lead.profitMargin}%):</td>
+                                <td>${appSettings.currencySymbol}${profit.toFixed(2)}</td>
+                            </tr>
+                            <tr style="font-weight: bold; font-size: 1.1em;">
+                                <td colspan="4" style="text-align: right;">Total Estimate:</td>
+                                <td>${appSettings.currencySymbol}${estimateTotal.toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </td>
+        </tr>
+        `;
+    }).join('');
+}
+
+function viewQuote(leadIndex) {
+    // Regenerate and open the PDF
+    const lead = leads[leadIndex];
+    if (lead && lead.bom) {
+        generateEstimatePDF(leadIndex);
+    }
+}
+
+// Settings Management
+function populateSettings() {
+    document.getElementById('settingCompanyName').value = appSettings.companyName;
+    document.getElementById('settingCompanyAddress').value = appSettings.companyAddress;
+    document.getElementById('settingCompanyPhone').value = appSettings.companyPhone;
+    document.getElementById('settingCompanyEmail').value = appSettings.companyEmail;
+    document.getElementById('settingCompanyWebsite').value = appSettings.companyWebsite;
+    
+    document.getElementById('settingCurrency').value = appSettings.currency;
+    document.getElementById('settingCurrencySymbol').value = appSettings.currencySymbol;
+    document.getElementById('settingDateFormat').value = appSettings.dateFormat;
+    document.getElementById('settingTaxRate').value = appSettings.taxRate;
+    
+    document.getElementById('settingQuoteTerms').value = appSettings.quoteTerms;
+    document.getElementById('settingInvoiceTerms').value = appSettings.invoiceTerms;
+    document.getElementById('settingPaymentTerms').value = appSettings.paymentTerms;
+    
+    document.getElementById('settingPrimaryColor').value = appSettings.primaryColor;
+    document.getElementById('settingSecondaryColor').value = appSettings.secondaryColor;
+    document.getElementById('settingQuoteTemplate').value = appSettings.quoteTemplate;
+}
+
+function saveSettings(e) {
+    if (e) e.preventDefault();
+    
+    appSettings = {
+        companyName: document.getElementById('settingCompanyName').value,
+        companyAddress: document.getElementById('settingCompanyAddress').value,
+        companyPhone: document.getElementById('settingCompanyPhone').value,
+        companyEmail: document.getElementById('settingCompanyEmail').value,
+        companyWebsite: document.getElementById('settingCompanyWebsite').value,
+        
+        currency: document.getElementById('settingCurrency').value,
+        currencySymbol: document.getElementById('settingCurrencySymbol').value,
+        dateFormat: document.getElementById('settingDateFormat').value,
+        taxRate: parseFloat(document.getElementById('settingTaxRate').value) || 0,
+        
+        quoteTerms: document.getElementById('settingQuoteTerms').value,
+        invoiceTerms: document.getElementById('settingInvoiceTerms').value,
+        paymentTerms: document.getElementById('settingPaymentTerms').value,
+        
+        primaryColor: document.getElementById('settingPrimaryColor').value,
+        secondaryColor: document.getElementById('settingSecondaryColor').value,
+        quoteTemplate: document.getElementById('settingQuoteTemplate').value
+    };
+    
+    localStorage.setItem('appSettings', JSON.stringify(appSettings));
+    
+    applySettings();
+    
+    // Show success message
+    alert('Settings saved successfully!');
+}
+
+function resetSettings() {
+    if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
+        appSettings = {
+            companyName: 'Your Company Name',
+            companyAddress: '123 Business St, City, Country',
+            companyPhone: '+1 (555) 123-4567',
+            companyEmail: 'info@yourcompany.com',
+            companyWebsite: 'www.yourcompany.com',
+            
+            currency: 'USD',
+            currencySymbol: '$',
+            dateFormat: 'MM/DD/YYYY',
+            taxRate: 0,
+            
+            quoteTerms: 'Quote valid for 30 days. Prices subject to change without notice.',
+            invoiceTerms: 'Payment due within 30 days. Late payments subject to 1.5% monthly interest.',
+            paymentTerms: 'Net 30',
+            
+            primaryColor: '#4CAF50',
+            secondaryColor: '#2196F3',
+            quoteTemplate: 'modern'
+        };
+        
+        localStorage.setItem('appSettings', JSON.stringify(appSettings));
+        populateSettings();
+        applySettings();
+        
+        alert('Settings have been reset to defaults!');
+    }
+}
+
+function applySettings() {
+    // Apply primary color to CSS variables
+    document.documentElement.style.setProperty('--primary-color', appSettings.primaryColor);
+    document.documentElement.style.setProperty('--secondary-color', appSettings.secondaryColor);
+    
+    // Re-render quotes if on that page to show updated currency
+    if (document.getElementById('quotesPage').classList.contains('active')) {
+        renderQuotes();
+    }
+    
+    // Update any visible currency symbols in the dashboard
+    updateDashboard();
 }
 
 // Helper function to format stage names
