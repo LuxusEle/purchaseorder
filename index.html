@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase Order Management System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-box-open"></i>
+                <h2>PO System</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-page="inventory">
+                    <i class="fas fa-boxes"></i>
+                    <span>Inventory</span>
+                </a>
+                <a href="#" class="nav-item" data-page="suppliers">
+                    <i class="fas fa-truck"></i>
+                    <span>Suppliers</span>
+                </a>
+                <a href="#" class="nav-item" data-page="orders">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>Purchase Orders</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1 id="page-title">Dashboard</h1>
+                </div>
+                <div class="header-right">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search...">
+                    </div>
+                    <div class="user-profile">
+                        <i class="fas fa-user-circle"></i>
+                        <span>Admin</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Page -->
+            <div id="dashboard" class="page active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Total Items</h3>
+                            <p class="stat-number" id="totalItems">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Active Suppliers</h3>
+                            <p class="stat-number" id="totalSuppliers">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Pending Orders</h3>
+                            <p class="stat-number" id="pendingOrders">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>Total Value</h3>
+                            <p class="stat-number" id="totalValue">$0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-activity">
+                    <h2>Recent Activity</h2>
+                    <div class="activity-list" id="activityList">
+                        <p class="empty-state">No recent activity</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inventory Page -->
+            <div id="inventory" class="page">
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showAddItemModal()">
+                        <i class="fas fa-plus"></i> Add Item
+                    </button>
+                    <div class="filter-buttons">
+                        <button class="btn btn-filter active" data-filter="all">All</button>
+                        <button class="btn btn-filter" data-filter="hardware">Hardware</button>
+                        <button class="btn btn-filter" data-filter="service">Services</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Item Code</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Supplier</th>
+                                <th>Quantity</th>
+                                <th>Unit Price</th>
+                                <th>Total Value</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable">
+                            <tr>
+                                <td colspan="8" class="empty-state">No items in inventory</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Suppliers Page -->
+            <div id="suppliers" class="page">
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showAddSupplierModal()">
+                        <i class="fas fa-plus"></i> Add Supplier
+                    </button>
+                </div>
+
+                <div class="suppliers-grid" id="suppliersGrid">
+                    <p class="empty-state">No suppliers added yet</p>
+                </div>
+            </div>
+
+            <!-- Orders Page -->
+            <div id="orders" class="page">
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showCreateOrderModal()">
+                        <i class="fas fa-plus"></i> Create Order
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Date</th>
+                                <th>Supplier</th>
+                                <th>Items</th>
+                                <th>Total Amount</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersTable">
+                            <tr>
+                                <td colspan="7" class="empty-state">No orders created yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Item Modal -->
+    <div id="addItemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Item</h2>
+                <span class="close" onclick="closeModal('addItemModal')">&times;</span>
+            </div>
+            <form id="addItemForm">
+                <div class="form-group">
+                    <label for="itemCode">Item Code</label>
+                    <input type="text" id="itemCode" required>
+                </div>
+                <div class="form-group">
+                    <label for="itemName">Item Name</label>
+                    <input type="text" id="itemName" required>
+                </div>
+                <div class="form-group">
+                    <label for="itemType">Type</label>
+                    <select id="itemType" required>
+                        <option value="">Select Type</option>
+                        <option value="hardware">Hardware</option>
+                        <option value="service">Service</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="itemSupplier">Supplier</label>
+                    <select id="itemSupplier" required>
+                        <option value="">Select Supplier</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="itemQuantity">Quantity</label>
+                    <input type="number" id="itemQuantity" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="itemPrice">Unit Price ($)</label>
+                    <input type="number" id="itemPrice" step="0.01" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="itemDescription">Description</label>
+                    <textarea id="itemDescription" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addItemModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Supplier Modal -->
+    <div id="addSupplierModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Supplier</h2>
+                <span class="close" onclick="closeModal('addSupplierModal')">&times;</span>
+            </div>
+            <form id="addSupplierForm">
+                <div class="form-group">
+                    <label for="supplierName">Supplier Name</label>
+                    <input type="text" id="supplierName" required>
+                </div>
+                <div class="form-group">
+                    <label for="supplierContact">Contact Person</label>
+                    <input type="text" id="supplierContact" required>
+                </div>
+                <div class="form-group">
+                    <label for="supplierEmail">Email</label>
+                    <input type="email" id="supplierEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="supplierPhone">Phone</label>
+                    <input type="tel" id="supplierPhone" required>
+                </div>
+                <div class="form-group">
+                    <label for="supplierAddress">Address</label>
+                    <textarea id="supplierAddress" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addSupplierModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Supplier</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Order Modal -->
+    <div id="createOrderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Purchase Order</h2>
+                <span class="close" onclick="closeModal('createOrderModal')">&times;</span>
+            </div>
+            <form id="createOrderForm">
+                <div class="form-group">
+                    <label for="orderSupplier">Supplier</label>
+                    <select id="orderSupplier" required>
+                        <option value="">Select Supplier</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="orderDate">Order Date</label>
+                    <input type="date" id="orderDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Items</label>
+                    <div id="orderItems">
+                        <div class="order-item-row">
+                            <select class="order-item-select" required>
+                                <option value="">Select Item</option>
+                            </select>
+                            <input type="number" class="order-item-quantity" placeholder="Qty" min="1" required>
+                            <button type="button" class="btn-icon" onclick="removeOrderItem(this)">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addOrderItem()">
+                        <i class="fas fa-plus"></i> Add Item
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label for="orderNotes">Notes</label>
+                    <textarea id="orderNotes" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createOrderModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
