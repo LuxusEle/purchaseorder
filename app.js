@@ -122,10 +122,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!window.firebaseAuth || !window.firebaseDb || !window.firebaseStorage) {
             console.error('Firebase not fully initialized!');
-            showAlert('Firebase initialization error. Please refresh the page.');
+            alert('Firebase initialization error. Please refresh the page.');
             return;
         }
         
+        console.log('Setting up authentication...');
         setupAuthentication();
     }, 1000);
 });
@@ -232,37 +233,53 @@ function setupAuthentication() {
     // Login form handler
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        console.log('Login form submitted');
+        
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
         const mode = document.getElementById('loginMode').value;
         
+        console.log('Login attempt:', { email, mode });
+        
         if (mode === 'staff') {
             const companyId = document.getElementById('loginCompanySelect').value;
             if (!companyId) {
+                console.log('No company selected');
                 showAlert('Please select a company');
                 return;
             }
             
             // Verify user is authorized for this company
             try {
+                console.log('Attempting staff login...');
                 const userCredential = await window.firebaseSignIn(window.firebaseAuth, email, password);
+                console.log('Staff login successful, checking authorization...');
+                
                 const staffDoc = await window.firebaseGetDoc(
                     window.firebaseDoc(window.firebaseDb, 'companies', companyId, 'staff', userCredential.user.uid)
                 );
                 
                 if (!staffDoc.exists()) {
+                    console.log('User not authorized for this company');
                     showAlert('You are not authorized to access this company');
                     await handleLogout();
                     return;
                 }
+                console.log('Staff authorization confirmed');
             } catch (error) {
+                console.error('Staff login error:', error);
                 showAlert('Login failed: ' + error.message, 'Login Error');
+                return;
             }
         } else {
             try {
+                console.log('Attempting owner login...');
                 await window.firebaseSignIn(window.firebaseAuth, email, password);
+                console.log('Owner login successful');
             } catch (error) {
+                console.error('Owner login error:', error);
                 showAlert('Login failed: ' + error.message, 'Login Error');
+                return;
             }
         }
     });
