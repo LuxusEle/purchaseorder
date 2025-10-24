@@ -2096,16 +2096,24 @@ async function handleAddLead(e) {
             notes: document.getElementById('leadNotes').value
         });
         
+        const customerId = document.getElementById('leadCustomer').value;
+        const customer = customers.find(c => c.id === customerId);
+        
         const lead = {
             id: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].id : 'LEAD-' + String(leads.length + 1).padStart(5, '0'),
             name: document.getElementById('leadName').value,
-            customerId: document.getElementById('leadCustomer').value,
+            customerId: customerId,
+            contactPerson: customer ? customer.name : '',
+            email: customer ? customer.email : '',
+            phone: customer ? customer.phone : '',
+            company: customer ? customer.company : '',
             source: document.getElementById('leadSource').value,
             stage: document.getElementById('leadStage').value,
             interest: document.getElementById('leadInterest').value,
             notes: document.getElementById('leadNotes').value,
             createdDate: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].createdDate : new Date().toISOString().split('T')[0],
-            bom: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].bom : null
+            bom: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].bom : [],
+            profitMargin: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].profitMargin : 20
         };
         
         console.log('Lead object created:', lead);
@@ -2152,19 +2160,21 @@ function editLead(index, event) {
     const lead = leads[index];
     currentEditingLeadIndex = index;
     
+    // Update modal title and button BEFORE showing modal
+    document.querySelector('#addLeadModal .modal-header h2').textContent = 'Update Lead';
+    document.getElementById('leadSubmitText').textContent = 'Update Lead';
+    document.querySelector('#leadSubmitBtn i').className = 'fas fa-save';
+    
+    // Show modal first (this populates customer dropdown via updateCustomerSelects)
+    showAddLeadModal();
+    
+    // Then populate form fields with existing lead data
     document.getElementById('leadName').value = lead.name;
     document.getElementById('leadCustomer').value = lead.customerId || '';
     document.getElementById('leadSource').value = lead.source;
     document.getElementById('leadStage').value = lead.stage;
     document.getElementById('leadInterest').value = lead.interest || '';
     document.getElementById('leadNotes').value = lead.notes || '';
-    
-    // Update modal title and button
-    document.querySelector('#addLeadModal .modal-header h2').textContent = 'Update Lead';
-    document.getElementById('leadSubmitText').textContent = 'Update Lead';
-    document.querySelector('#leadSubmitBtn i').className = 'fas fa-save';
-    
-    showAddLeadModal();
 }
 
 async function updateLeadStage(index, newStage) {
@@ -2334,14 +2344,22 @@ function openBOMModal(leadIndex, event) {
             `<option value="${idx}">${item.name} - ${item.type} - ${formatCurrency(item.price)}</option>`
         ).join('');
     
-    // Load existing BOM if available
-    if (lead.bom) {
-        document.getElementById('bomProfitPercent').value = lead.bom.profitPercent;
+    // Load existing BOM if available - handle both array and object structures
+    if (lead.bom && Array.isArray(lead.bom) && lead.bom.length > 0) {
+        // BOM is stored as array (current structure)
+        document.getElementById('bomProfitPercent').value = lead.profitMargin || 20;
+        document.getElementById('bomNotes').value = lead.notes || '';
+        renderBOMItems(lead.bom);
+        updateBOMTotals();
+    } else if (lead.bom && lead.bom.items) {
+        // BOM is stored as object (legacy structure)
+        document.getElementById('bomProfitPercent').value = lead.bom.profitPercent || lead.profitMargin || 20;
         document.getElementById('bomNotes').value = lead.bom.notes || '';
         renderBOMItems(lead.bom.items);
         updateBOMTotals();
     } else {
-        document.getElementById('bomProfitPercent').value = 20;
+        // No BOM yet
+        document.getElementById('bomProfitPercent').value = lead.profitMargin || 20;
         document.getElementById('bomNotes').value = '';
         document.getElementById('bomItemsTable').innerHTML = '<tr><td colspan="6" class="empty-state">No items added yet</td></tr>';
         updateBOMTotals();
@@ -2362,31 +2380,25 @@ function addBOMItem() {
     const item = inventory[selectIndex];
     const lead = leads[currentBOMLeadIndex];
     
-    if (!lead.bom) {
-        lead.bom = {
-            items: [],
-            subtotal: 0,
-            profitPercent: 20,
-            profit: 0,
-            total: 0,
-            notes: ''
-        };
+    // Initialize BOM as array if it doesn't exist
+    if (!lead.bom || !Array.isArray(lead.bom)) {
+        lead.bom = [];
     }
     
     // Check if item already exists in BOM
-    const existingIndex = lead.bom.items.findIndex(i => i.name === item.name);
+    const existingIndex = lead.bom.findIndex(i => i.name === item.name);
     if (existingIndex >= 0) {
-        lead.bom.items[existingIndex].quantity += quantity;
+        lead.bom[existingIndex].quantity += quantity;
     } else {
-        lead.bom.items.push({
+        lead.bom.push({
             name: item.name,
             type: item.type,
             quantity: quantity,
-            unitPrice: item.price
+            price: item.price  // Using 'price' to match mock data structure
         });
     }
     
-    renderBOMItems(lead.bom.items);
+    renderBOMItems(lead.bom);
     updateBOMTotals();
     
     document.getElementById('bomItemSelect').value = '';
@@ -2395,9 +2407,9 @@ function addBOMItem() {
 
 function removeBOMItem(index) {
     const lead = leads[currentBOMLeadIndex];
-    if (lead.bom && lead.bom.items) {
-        lead.bom.items.splice(index, 1);
-        renderBOMItems(lead.bom.items);
+    if (lead.bom && Array.isArray(lead.bom)) {
+        lead.bom.splice(index, 1);
+        renderBOMItems(lead.bom);
         updateBOMTotals();
     }
 }
@@ -2410,30 +2422,41 @@ function renderBOMItems(items) {
         return;
     }
     
-    tbody.innerHTML = items.map((item, index) => `
+    tbody.innerHTML = items.map((item, index) => {
+        const unitPrice = item.price || item.unitPrice || 0;
+        return `
         <tr>
             <td>${item.name}</td>
             <td><span class="badge badge-${item.type}">${item.type}</span></td>
             <td>${item.quantity}</td>
-            <td>${formatCurrency(item.unitPrice)}</td>
-            <td>${formatCurrency(item.quantity * item.unitPrice)}</td>
+            <td>${formatCurrency(unitPrice)}</td>
+            <td>${formatCurrency(item.quantity * unitPrice)}</td>
             <td>
                 <button class="btn-icon" onclick="removeBOMItem(${index})">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function updateBOMTotals() {
     const lead = leads[currentBOMLeadIndex];
-    if (!lead.bom || !lead.bom.items) return;
+    if (!lead.bom || !Array.isArray(lead.bom) || lead.bom.length === 0) {
+        document.getElementById('bomSubtotal').textContent = formatCurrency(0);
+        document.getElementById('bomProfit').textContent = formatCurrency(0);
+        document.getElementById('bomTotal').textContent = formatCurrency(0);
+        return;
+    }
     
     const profitPercent = parseFloat(document.getElementById('bomProfitPercent').value) || 0;
     document.getElementById('bomProfitPercentDisplay').textContent = profitPercent;
     
-    const subtotal = lead.bom.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const subtotal = lead.bom.reduce((sum, item) => {
+        const unitPrice = item.price || item.unitPrice || 0;
+        return sum + (item.quantity * unitPrice);
+    }, 0);
     const profit = subtotal * (profitPercent / 100);
     const total = subtotal + profit;
     
@@ -2442,38 +2465,35 @@ function updateBOMTotals() {
     document.getElementById('bomTotal').textContent = formatCurrency(total);
 }
 
-function saveBOM() {
+async function saveBOM() {
     const lead = leads[currentBOMLeadIndex];
-    if (!lead.bom || lead.bom.items.length === 0) {
+    if (!lead.bom || !Array.isArray(lead.bom) || lead.bom.length === 0) {
         showAlert('Please add at least one item to the BOM');
         return;
     }
     
     const profitPercent = parseFloat(document.getElementById('bomProfitPercent').value) || 0;
-    const subtotal = lead.bom.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-    const profit = subtotal * (profitPercent / 100);
-    const total = subtotal + profit;
     
-    lead.bom.subtotal = subtotal;
-    lead.bom.profitPercent = profitPercent;
-    lead.bom.profit = profit;
-    lead.bom.total = total;
-    lead.bom.notes = document.getElementById('bomNotes').value;
+    // Update profit margin at lead level
+    lead.profitMargin = profitPercent;
+    lead.notes = document.getElementById('bomNotes').value;
     
     saveData();
+    await saveDataToFirebase();
     renderLeads();
+    closeModal('bomModal');
     showAlert('BOM saved successfully!');
 }
 
-function generateEstimatePDF() {
+async function generateEstimatePDF() {
     const lead = leads[currentBOMLeadIndex];
-    if (!lead.bom || lead.bom.items.length === 0) {
+    if (!lead.bom || !Array.isArray(lead.bom) || lead.bom.length === 0) {
         showAlert('Please add items to the BOM and save before generating PDF');
         return;
     }
     
     // Save BOM first
-    saveBOM();
+    await saveBOM();
     
     const customer = customers.find(c => c.id === lead.customerId);
     const { jsPDF } = window.jspdf;
@@ -2540,13 +2560,25 @@ function generateEstimatePDF() {
     
     // Items Table
     const currencySymbol = settings.currencySymbol || '$';
-    const tableData = lead.bom.items.map(item => [
-        item.name,
-        item.type,
-        item.quantity.toString(),
-        formatCurrency(item.unitPrice || 0),
-        formatCurrency((item.quantity * (item.unitPrice || 0)))
-    ]);
+    const tableData = lead.bom.map(item => {
+        const unitPrice = item.price || item.unitPrice || 0;
+        return [
+            item.name,
+            item.type,
+            item.quantity.toString(),
+            formatCurrency(unitPrice),
+            formatCurrency(item.quantity * unitPrice)
+        ];
+    });
+    
+    // Calculate totals
+    const subtotal = lead.bom.reduce((sum, item) => {
+        const unitPrice = item.price || item.unitPrice || 0;
+        return sum + (item.quantity * unitPrice);
+    }, 0);
+    const profitPercent = lead.profitMargin || 20;
+    const profit = subtotal * (profitPercent / 100);
+    const total = subtotal + profit;
     
     doc.autoTable({
         startY: startY + 80,
@@ -2555,9 +2587,9 @@ function generateEstimatePDF() {
         theme: 'striped',
         headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
         foot: [
-            ['', '', '', 'Subtotal:', formatCurrency(lead.bom.subtotal || 0)],
-            ['', '', '', `Profit (${lead.bom.profitPercent || 0}%):`, formatCurrency(lead.bom.profit || 0)],
-            ['', '', '', 'TOTAL:', formatCurrency(lead.bom.total || 0)]
+            ['', '', '', 'Subtotal:', formatCurrency(subtotal)],
+            ['', '', '', `Profit (${profitPercent}%):`, formatCurrency(profit)],
+            ['', '', '', 'TOTAL:', formatCurrency(total)]
         ],
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
