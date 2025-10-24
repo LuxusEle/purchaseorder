@@ -17,6 +17,13 @@ let currentCompanyId = null;
 let currentUserRole = 'owner'; // 'owner' or 'staff'
 let staffMembers = [];
 
+// Helper function to format currency
+function formatCurrency(amount) {
+    const symbol = settings.currencySymbol || 'Rs';
+    const formattedAmount = amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return `${symbol}${formattedAmount}`;
+}
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
     // Wait for Firebase to initialize
@@ -93,6 +100,24 @@ function setupAuthentication() {
             const userMgmtSection = document.getElementById('userManagementSection');
             if (userMgmtSection) {
                 userMgmtSection.style.display = currentUserRole === 'owner' ? 'block' : 'none';
+            }
+            
+            // Update header with user info
+            if (document.getElementById('headerUserEmail')) {
+                document.getElementById('headerUserEmail').textContent = user.email;
+            }
+            if (document.getElementById('userRoleDisplay')) {
+                document.getElementById('userRoleDisplay').textContent = currentUserRole.toUpperCase();
+            }
+            if (document.getElementById('roleIcon')) {
+                const icon = document.getElementById('roleIcon');
+                if (currentUserRole === 'owner') {
+                    icon.className = 'fas fa-crown';
+                    icon.style.color = '#f59e0b';
+                } else {
+                    icon.className = 'fas fa-user';
+                    icon.style.color = '#6b7280';
+                }
             }
             
             // Initialize app
@@ -728,7 +753,7 @@ function updateDashboard() {
     document.getElementById('pendingOrders').textContent = pendingOrdersCount;
     
     const totalValue = inventory.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-    document.getElementById('totalValue').textContent = `${settings.currencySymbol || '$'}${totalValue.toLocaleString()}`;
+    document.getElementById('totalValue').textContent = formatCurrency(totalValue);
     
     // Count active leads (not won or lost)
     const activeLeads = leads.filter(l => l.stage !== 'won' && l.stage !== 'lost').length;
@@ -797,8 +822,8 @@ function renderInventory() {
             <td><span class="badge badge-${item.type}">${item.type}</span></td>
             <td>${item.supplier}</td>
             <td>${item.quantity}</td>
-            <td>${settings.currencySymbol || '$'}${item.price.toFixed(2)}</td>
-            <td>${settings.currencySymbol || '$'}${(item.quantity * item.price).toFixed(2)}</td>
+            <td>${formatCurrency(item.price)}</td>
+            <td>${formatCurrency(item.quantity * item.price)}</td>
             <td>
                 <div class="action-buttons">
                     <button class="btn-action btn-edit" onclick="editItem(${index})">
@@ -836,7 +861,7 @@ function renderInventory() {
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Unit Price</span>
-                            <span class="detail-value">${settings.currencySymbol || '$'}${item.price.toFixed(2)}</span>
+                            <span class="detail-value">${formatCurrency(item.price)}</span>
                         </div>
                     </div>
                     ${item.description ? `

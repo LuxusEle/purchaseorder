@@ -143,9 +143,12 @@
                         <i class="fas fa-search"></i>
                         <input type="text" placeholder="Search...">
                     </div>
-                    <div class="user-profile">
-                        <i class="fas fa-user-circle"></i>
-                        <span>Admin</span>
+                    <div class="user-profile" onclick="switchPage('settings')" style="cursor: pointer;">
+                        <i class="fas fa-crown" id="roleIcon" style="color: #f59e0b; margin-right: 8px;"></i>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span id="userRoleDisplay" style="font-weight: 600; font-size: 12px; color: #6b7280;">OWNER</span>
+                            <span id="headerUserEmail" style="font-size: 14px;">Admin</span>
+                        </div>
                     </div>
                 </div>
             </header>
