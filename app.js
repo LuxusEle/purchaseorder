@@ -1671,7 +1671,12 @@ function generatePOPDF(orderIndex) {
         foot: [
             ['', '', 'TOTAL:', formatCurrency(order.totalAmount)]
         ],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+        didParseCell: function(data) {
+            if (data.section === 'foot' && data.column.index >= 2) {
+                data.cell.styles.halign = 'right';
+            }
+        }
     });
     
     // Payment Status
@@ -2796,7 +2801,12 @@ async function generateEstimatePDF() {
             ['', '', '', `Profit (${profitPercent}%):`, formatCurrency(profit)],
             ['', '', '', 'TOTAL:', formatCurrency(total)]
         ],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+        didParseCell: function(data) {
+            if (data.section === 'foot' && data.column.index >= 3) {
+                data.cell.styles.halign = 'right';
+            }
+        }
     });
     
     // Terms & Conditions
@@ -3516,7 +3526,16 @@ function generateInvoicePDF(invoiceIndex) {
             ['', '', 'Paid:', formatCurrency(invoice.paidAmount)],
             ['', '', 'BALANCE DUE:', formatCurrency(invoice.totalAmount - invoice.paidAmount)]
         ],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+        didParseCell: function(data) {
+            // Right-align footer currency columns
+            if (data.section === 'foot' && data.column.index === 3) {
+                data.cell.styles.halign = 'right';
+            }
+            if (data.section === 'foot' && data.column.index === 2) {
+                data.cell.styles.halign = 'right';
+            }
+        }
     });
     
     // Payment History
@@ -4094,7 +4113,12 @@ function generateQuotePDF(quoteIndex) {
             ['', '', '', `Profit (${quoteData.profitMargin}%):`, `${formatCurrency(quoteData.profit)}`],
             ['', '', '', 'TOTAL:', `${formatCurrency(quoteData.total)}`]
         ],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+        didParseCell: function(data) {
+            if (data.section === 'foot' && data.column.index >= 3) {
+                data.cell.styles.halign = 'right';
+            }
+        }
     });
     
     // Terms & Conditions
