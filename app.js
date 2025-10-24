@@ -112,6 +112,17 @@ function formatCurrency(amount) {
     return `${symbol} ${formattedAmount}`;
 }
 
+// Format currency for aligned display (symbol left, number right)
+function formatCurrencyAligned(amount, width = 20) {
+    if (amount === undefined || amount === null || isNaN(amount)) {
+        amount = 0;
+    }
+    const symbol = settings.currencySymbol || 'Rs';
+    const formattedAmount = parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const padding = ' '.repeat(Math.max(0, width - formattedAmount.length - symbol.length - 1));
+    return `${symbol}${padding}${formattedAmount}`;
+}
+
 // Format numbers with thousand separators (no currency symbol)
 function formatNumber(number, decimals = 0) {
     // Handle undefined, null, or invalid values
@@ -3343,7 +3354,7 @@ function viewInvoiceDetails(index) {
     // Format payment history professionally
     const paymentHistory = invoice.payments.length > 0 
         ? invoice.payments.map(p => 
-            `  • ${new Date(p.date).toLocaleDateString()} - ${formatCurrency(p.amount)} (${p.method || 'Payment'})`
+            `  • ${new Date(p.date).toLocaleDateString()} - ${formatCurrencyAligned(p.amount)} (${p.method || 'Payment'})`
           ).join('\n')
         : '  No payments recorded yet';
     
@@ -3370,9 +3381,9 @@ DATES
 
 FINANCIAL SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Total Amount:         ${formatCurrency(invoice.totalAmount)}
-  Paid Amount:          ${formatCurrency(invoice.paidAmount)}
-  Amount Due:           ${formatCurrency(amountDue)}
+  Total Amount:         ${formatCurrencyAligned(invoice.totalAmount)}
+  Paid Amount:          ${formatCurrencyAligned(invoice.paidAmount)}
+  Amount Due:           ${formatCurrencyAligned(amountDue)}
   
   Payment Progress:     ${((invoice.paidAmount / invoice.totalAmount) * 100).toFixed(1)}%
 
@@ -4482,7 +4493,7 @@ function viewProjectDetails(index) {
         if (!po) return `  • ${poId}`;
         
         const statusIcon = po.status === 'settled' ? '✓' : po.status === 'pending' ? '○' : '◐';
-        return `  ${statusIcon} ${po.id} - ${po.supplier}\n    Amount: ${formatCurrency(po.totalAmount)} (${po.status.toUpperCase()})`;
+        return `  ${statusIcon} ${po.id} - ${po.supplier}\n    Amount: ${formatCurrencyAligned(po.totalAmount)} (${po.status.toUpperCase()})`;
     }).join('\n\n');
     
     // Create professional formatted message
@@ -4501,9 +4512,9 @@ PROJECT INFORMATION
 
 FINANCIAL SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Total Value:          ${formatCurrency(project.totalValue)}
-  Advance Received:     ${formatCurrency(project.advanceReceived)}
-  Balance Due:          ${formatCurrency(project.balanceRemaining)}
+  Total Value:          ${formatCurrencyAligned(project.totalValue)}
+  Advance Received:     ${formatCurrencyAligned(project.advanceReceived)}
+  Balance Due:          ${formatCurrencyAligned(project.balanceRemaining)}
 
 PURCHASE ORDERS (${project.purchaseOrders.length})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -4511,15 +4522,15 @@ ${poDetails || '  No purchase orders yet'}
 
 PO PAYMENT SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Total PO Cost:        ${formatCurrency(project.totalPOCost)}
-  Paid to Suppliers:    ${formatCurrency(project.paidToPOs)}
-  Pending Payments:     ${formatCurrency(project.pendingPOPayments)}
+  Total PO Cost:        ${formatCurrencyAligned(project.totalPOCost)}
+  Paid to Suppliers:    ${formatCurrencyAligned(project.paidToPOs)}
+  Pending Payments:     ${formatCurrencyAligned(project.pendingPOPayments)}
 
 PROFIT ANALYSIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Revenue (Advance):    ${formatCurrency(project.advanceReceived)}
-  Costs (PO Paid):      ${formatCurrency(project.paidToPOs)}
-  Current Profit:       ${formatCurrency(project.advanceReceived - project.paidToPOs)}
+  Revenue (Advance):    ${formatCurrencyAligned(project.advanceReceived)}
+  Costs (PO Paid):      ${formatCurrencyAligned(project.paidToPOs)}
+  Current Profit:       ${formatCurrencyAligned(project.advanceReceived - project.paidToPOs)}
   Profit Margin:        ${project.profitMargin}%
 `.trim();
     
