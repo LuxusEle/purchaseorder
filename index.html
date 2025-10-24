@@ -103,6 +103,10 @@
                     <i class="fas fa-user-plus"></i>
                     <span>Leads</span>
                 </a>
+                <a href="#" class="nav-item" data-page="boms">
+                    <i class="fas fa-calculator"></i>
+                    <span>BOMs</span>
+                </a>
                 <a href="#" class="nav-item" data-page="quotes">
                     <i class="fas fa-file-invoice-dollar"></i>
                     <span>Quotes/Estimates</span>
@@ -416,6 +420,48 @@
                         <tbody id="leadsTableBody">
                             <tr>
                                 <td colspan="7" class="empty-state">No leads added yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- BOMs Page -->
+            <div id="boms" class="page">
+                <div class="page-actions">
+                    <h2 style="margin: 0;">Bills of Materials (BOMs)</h2>
+                    <div class="filter-buttons">
+                        <input type="text" id="bomSearchInput" placeholder="Search BOMs..." style="padding: 8px; border: 1px solid var(--border); border-radius: 6px; width: 250px;" onkeyup="filterBOMs()">
+                        <select id="bomStageFilter" style="padding: 8px; border: 1px solid var(--border); border-radius: 6px;" onchange="filterBOMs()">
+                            <option value="">All Stages</option>
+                            <option value="site-visit">Site Visit</option>
+                            <option value="measurements">Measurements</option>
+                            <option value="estimate">Estimate/BOM</option>
+                            <option value="estimate-approval">Estimate Approval</option>
+                            <option value="won">Won</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th onclick="sortBOMsTable('id')" style="cursor: pointer;">Lead ID <i class="fas fa-sort"></i></th>
+                                <th onclick="sortBOMsTable('project')" style="cursor: pointer;">Project Name <i class="fas fa-sort"></i></th>
+                                <th onclick="sortBOMsTable('customer')" style="cursor: pointer;">Customer <i class="fas fa-sort"></i></th>
+                                <th onclick="sortBOMsTable('stage')" style="cursor: pointer;">Stage <i class="fas fa-sort"></i></th>
+                                <th onclick="sortBOMsTable('items')" style="cursor: pointer;">Items <i class="fas fa-sort"></i></th>
+                                <th onclick="sortBOMsTable('subtotal')" style="cursor: pointer;">Subtotal <i class="fas fa-sort"></i></th>
+                                <th onclick="sortBOMsTable('profit')" style="cursor: pointer;">Profit % <i class="fas fa-sort"></i></th>
+                                <th onclick="sortBOMsTable('total')" style="cursor: pointer;">Total Value <i class="fas fa-sort"></i></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bomsTableBody">
+                            <tr>
+                                <td colspan="10" class="empty-state">No BOMs created yet</td>
                             </tr>
                         </tbody>
                     </table>

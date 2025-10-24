@@ -861,6 +861,7 @@ function switchPage(pageName) {
         orders: 'Purchase Orders',
         customers: 'Customer Management',
         leads: 'Lead Management',
+        boms: 'Bills of Materials (BOMs)',
         quotes: 'Quotes & Estimates',
         projects: 'Active Projects',
         finance: 'Financial Overview',
@@ -875,6 +876,8 @@ function switchPage(pageName) {
         renderProjects();
     } else if (pageName === 'finance') {
         renderFinance();
+    } else if (pageName === 'boms') {
+        renderBOMs();
     }
 }
 
@@ -1859,9 +1862,9 @@ function renderLeadsKanban() {
                             <i class="fas fa-dollar-sign"></i> ${estimateValue}
                         </div>
                         <div class="kanban-card-actions">
-                            ${lead.stage === 'estimate' || lead.stage === 'estimate-approval' ? `
-                                <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${leadIndex}, event)">
-                                    <i class="fas fa-calculator"></i>
+                            ${lead.stage !== 'initial-discussion' && lead.stage !== 'lost' ? `
+                                <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${leadIndex}, event)" title="${lead.bom && lead.bom.length > 0 ? 'Edit BOM' : 'Create BOM'}">
+                                    <i class="fas fa-calculator"></i> ${lead.bom && lead.bom.length > 0 ? '<span style="font-size: 10px;">✓</span>' : ''}
                                 </button>
                             ` : ''}
                             <button class="btn-action btn-edit" onclick="editLead(${leadIndex}, event)">
@@ -1913,9 +1916,9 @@ function renderLeadsTable() {
             <td>${estimateValue}</td>
             <td>
                 <div class="action-buttons">
-                    ${lead.stage === 'estimate' || lead.stage === 'estimate-approval' ? `
-                        <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${index})">
-                            <i class="fas fa-calculator"></i> BOM
+                    ${lead.stage !== 'initial-discussion' && lead.stage !== 'lost' ? `
+                        <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${index})" title="${lead.bom && lead.bom.length > 0 ? 'Edit BOM ✓' : 'Create BOM'}">
+                            <i class="fas fa-calculator"></i> ${lead.bom && lead.bom.length > 0 ? 'BOM ✓' : 'BOM'}
                         </button>
                     ` : ''}
                     <button class="btn-action btn-edit" onclick="editLead(${index})">
@@ -2635,6 +2638,218 @@ function hexToRgb(hex) {
         g: parseInt(result[2], 16),
         b: parseInt(result[3], 16)
     } : { r: 79, g: 70, b: 229 }; // Default color if parsing fails
+}
+
+// BOMs Management
+function renderBOMs() {
+    const tbody = document.getElementById('bomsTableBody');
+    
+    // Get all leads that have BOMs
+    const leadsWithBOMs = leads.filter(lead => lead.bom && Array.isArray(lead.bom) && lead.bom.length > 0);
+    
+    if (leadsWithBOMs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No BOMs created yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = leadsWithBOMs.map((lead, index) => {
+        const leadIndex = leads.indexOf(lead);
+        const customer = customers.find(c => c.id === lead.customerId);
+        const customerName = customer ? customer.name : 'Unknown';
+        
+        // Calculate BOM totals
+        const subtotal = lead.bom.reduce((sum, item) => {
+            const unitPrice = item.price || item.unitPrice || 0;
+            return sum + (item.quantity * unitPrice);
+        }, 0);
+        const profitPercent = lead.profitMargin || 20;
+        const profit = subtotal * (profitPercent / 100);
+        const total = subtotal + profit;
+        
+        const itemCount = lead.bom.length;
+        
+        return `
+        <tr class="main-row" data-index="${leadIndex}">
+            <td>
+                <i class="fas fa-chevron-right expand-icon" onclick="toggleDetailRow(${leadIndex}, 'bom')"></i>
+            </td>
+            <td><strong>${lead.id}</strong></td>
+            <td>${lead.name}</td>
+            <td>${customerName}</td>
+            <td><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></td>
+            <td>${itemCount} items</td>
+            <td>${formatCurrency(subtotal)}</td>
+            <td>${profitPercent}%</td>
+            <td><strong>${formatCurrency(total)}</strong></td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${leadIndex})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-action btn-primary" onclick="generateEstimatePDF()">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
+                </div>
+            </td>
+        </tr>
+        <tr class="detail-row" id="detail-bom-${leadIndex}">
+            <td colspan="10">
+                <div class="detail-content">
+                    <h4 style="margin-bottom: 12px;">BOM Items</h4>
+                    <table class="data-table" style="margin-bottom: 0;">
+                        <thead>
+                            <tr>
+                                <th>Item Name</th>
+                                <th>Type</th>
+                                <th>Quantity</th>
+                                <th>Unit Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${lead.bom.map(item => {
+                                const unitPrice = item.price || item.unitPrice || 0;
+                                return `
+                                <tr>
+                                    <td>${item.name}</td>
+                                    <td><span class="badge badge-${item.type}">${item.type}</span></td>
+                                    <td>${item.quantity}</td>
+                                    <td>${formatCurrency(unitPrice)}</td>
+                                    <td>${formatCurrency(item.quantity * unitPrice)}</td>
+                                </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                        <tfoot>
+                            <tr style="font-weight: bold; background: var(--bg-secondary);">
+                                <td colspan="4" style="text-align: right;">Subtotal:</td>
+                                <td>${formatCurrency(subtotal)}</td>
+                            </tr>
+                            <tr style="font-weight: bold; background: var(--bg-secondary);">
+                                <td colspan="4" style="text-align: right;">Profit (${profitPercent}%):</td>
+                                <td style="color: var(--success);">${formatCurrency(profit)}</td>
+                            </tr>
+                            <tr style="font-weight: bold; background: var(--primary); color: white;">
+                                <td colspan="4" style="text-align: right;">Total:</td>
+                                <td>${formatCurrency(total)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    ${lead.notes ? `
+                        <div style="margin-top: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                            <strong>Notes:</strong> ${lead.notes}
+                        </div>
+                    ` : ''}
+                </div>
+            </td>
+        </tr>
+        `;
+    }).join('');
+}
+
+function filterBOMs() {
+    const searchInput = document.getElementById('bomSearchInput').value.toLowerCase();
+    const stageFilter = document.getElementById('bomStageFilter').value;
+    
+    const rows = document.querySelectorAll('#bomsTableBody tr.main-row');
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const stage = row.querySelector('.badge') ? row.querySelector('.badge').textContent.toLowerCase() : '';
+        
+        const matchesSearch = text.includes(searchInput);
+        const matchesStage = !stageFilter || stage.includes(stageFilter.toLowerCase());
+        
+        if (matchesSearch && matchesStage) {
+            row.style.display = '';
+            const nextRow = row.nextElementSibling;
+            if (nextRow && nextRow.classList.contains('detail-row')) {
+                nextRow.style.display = '';
+            }
+        } else {
+            row.style.display = 'none';
+            const nextRow = row.nextElementSibling;
+            if (nextRow && nextRow.classList.contains('detail-row')) {
+                nextRow.style.display = 'none';
+            }
+        }
+    });
+}
+
+let bomSortColumn = null;
+let bomSortDirection = 'asc';
+
+function sortBOMsTable(column) {
+    if (bomSortColumn === column) {
+        bomSortDirection = bomSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        bomSortColumn = column;
+        bomSortDirection = 'asc';
+    }
+    
+    const leadsWithBOMs = leads.filter(lead => lead.bom && Array.isArray(lead.bom) && lead.bom.length > 0);
+    
+    leadsWithBOMs.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch(column) {
+            case 'id':
+                aVal = a.id;
+                bVal = b.id;
+                break;
+            case 'project':
+                aVal = a.name.toLowerCase();
+                bVal = b.name.toLowerCase();
+                break;
+            case 'customer':
+                const customerA = customers.find(c => c.id === a.customerId);
+                const customerB = customers.find(c => c.id === b.customerId);
+                aVal = customerA ? customerA.name.toLowerCase() : '';
+                bVal = customerB ? customerB.name.toLowerCase() : '';
+                break;
+            case 'stage':
+                aVal = a.stage;
+                bVal = b.stage;
+                break;
+            case 'items':
+                aVal = a.bom.length;
+                bVal = b.bom.length;
+                break;
+            case 'subtotal':
+            case 'total':
+                const aSubtotal = a.bom.reduce((sum, item) => sum + ((item.price || item.unitPrice || 0) * item.quantity), 0);
+                const bSubtotal = b.bom.reduce((sum, item) => sum + ((item.price || item.unitPrice || 0) * item.quantity), 0);
+                if (column === 'subtotal') {
+                    aVal = aSubtotal;
+                    bVal = bSubtotal;
+                } else {
+                    const aProfit = aSubtotal * ((a.profitMargin || 20) / 100);
+                    const bProfit = bSubtotal * ((b.profitMargin || 20) / 100);
+                    aVal = aSubtotal + aProfit;
+                    bVal = bSubtotal + bProfit;
+                }
+                break;
+            case 'profit':
+                aVal = a.profitMargin || 20;
+                bVal = b.profitMargin || 20;
+                break;
+            default:
+                return 0;
+        }
+        
+        if (aVal < bVal) return bomSortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return bomSortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+    
+    // Update the leads array with sorted order (only for BOMs)
+    const sortedLeads = [...leads];
+    leadsWithBOMs.forEach((lead, index) => {
+        const originalIndex = leads.indexOf(lead);
+        sortedLeads[originalIndex] = lead;
+    });
+    
+    // Re-render with sorted data
+    renderBOMs();
 }
 
 // Quotes/Estimates Management
