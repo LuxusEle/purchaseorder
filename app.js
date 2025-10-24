@@ -1005,8 +1005,8 @@ function renderInventory() {
             <td><span class="badge badge-${item.type}">${item.type}</span></td>
             <td>${item.supplier}</td>
             <td>${item.quantity}</td>
-            <td>${formatCurrency(item.price)}</td>
-            <td>${formatCurrency(item.quantity * item.price)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(item.price, 18)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(item.quantity * item.price, 18)}</td>
             <td>
                 <div class="action-buttons">
                     <button class="btn-action btn-edit" onclick="editItem(${index})">
@@ -1098,8 +1098,8 @@ function filterInventory(filter) {
             <td><span class="badge badge-${item.type}">${item.type}</span></td>
             <td>${item.supplier}</td>
             <td>${item.quantity}</td>
-            <td>${formatCurrency(item.price)}</td>
-            <td>${formatCurrency(item.quantity * item.price)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(item.price, 18)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(item.quantity * item.price, 18)}</td>
             <td>
                 <div class="action-buttons">
                     <button class="btn-action btn-edit" onclick="editItem(${index})">
@@ -1332,12 +1332,12 @@ function renderOrders() {
             <td>${order.date}</td>
             <td>${order.supplier}</td>
             <td>${order.items.length} item(s)</td>
-            <td>${formatCurrency(order.totalAmount)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(order.totalAmount, 20)}</td>
             <td>
                 <span class="status-badge" style="background: ${statusColor};">
                     ${order.status.toUpperCase()}
                 </span>
-                ${order.status === 'pending' && paidAmount > 0 ? `<br><small>Paid: ${formatCurrency(paidAmount)}</small>` : ''}
+                ${order.status === 'pending' && paidAmount > 0 ? `<br><small style="font-family: 'Courier New', monospace;">Paid: ${formatCurrencyAligned(paidAmount, 18)}</small>` : ''}
             </td>
             <td>
                 <div class="action-buttons">
@@ -1432,8 +1432,8 @@ function viewOrder(index) {
         <tr>
             <td>${item.name}</td>
             <td style="text-align: center;">${item.quantity}</td>
-            <td style="text-align: right;">${formatCurrency(item.price)}</td>
-            <td style="text-align: right;"><strong>${formatCurrency(item.quantity * item.price)}</strong></td>
+            <td style="text-align: right; font-family: 'Courier New', monospace;">${formatCurrencyAligned(item.price, 18)}</td>
+            <td style="text-align: right; font-family: 'Courier New', monospace;"><strong>${formatCurrencyAligned(item.quantity * item.price, 18)}</strong></td>
         </tr>
     `).join('');
     
@@ -1653,10 +1653,15 @@ function generatePOPDF(orderIndex) {
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
+        columnStyles: {
+            1: { halign: 'center' },
+            2: { halign: 'right' },
+            3: { halign: 'right' }
+        },
         foot: [
             ['', '', 'TOTAL:', formatCurrency(order.totalAmount)]
         ],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
     });
     
     // Payment Status
@@ -2614,8 +2619,8 @@ function renderBOMItems(items) {
             <td>${item.name}</td>
             <td><span class="badge badge-${item.type}">${item.type}</span></td>
             <td>${item.quantity}</td>
-            <td>${formatCurrency(unitPrice)}</td>
-            <td>${formatCurrency(item.quantity * unitPrice)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(unitPrice, 18)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(item.quantity * unitPrice, 18)}</td>
             <td>
                 <button class="btn-icon" onclick="removeBOMItem(${index})">
                     <i class="fas fa-trash"></i>
@@ -2771,12 +2776,17 @@ async function generateEstimatePDF() {
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
+        columnStyles: {
+            2: { halign: 'center' },
+            3: { halign: 'right' },
+            4: { halign: 'right' }
+        },
         foot: [
             ['', '', '', 'Subtotal:', formatCurrency(subtotal)],
             ['', '', '', `Profit (${profitPercent}%):`, formatCurrency(profit)],
             ['', '', '', 'TOTAL:', formatCurrency(total)]
         ],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
     });
     
     // Terms & Conditions
@@ -2860,9 +2870,9 @@ function renderBOMs() {
             <td>${customerName}</td>
             <td><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></td>
             <td>${itemCount} items</td>
-            <td>${formatCurrency(subtotal)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(subtotal, 18)}</td>
             <td>${profitPercent}%</td>
-            <td><strong>${formatCurrency(total)}</strong></td>
+            <td style="font-family: 'Courier New', monospace;"><strong>${formatCurrencyAligned(total, 18)}</strong></td>
             <td>
                 <div class="action-buttons">
                     <button class="btn-action" style="background: rgba(20, 184, 166, 0.1); color: #14b8a6;" onclick="openBOMModal(${leadIndex})">
@@ -2896,8 +2906,8 @@ function renderBOMs() {
                                     <td>${item.name}</td>
                                     <td><span class="badge badge-${item.type}">${item.type}</span></td>
                                     <td>${item.quantity}</td>
-                                    <td>${formatCurrency(unitPrice)}</td>
-                                    <td>${formatCurrency(item.quantity * unitPrice)}</td>
+                                    <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(unitPrice, 18)}</td>
+                                    <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(item.quantity * unitPrice, 18)}</td>
                                 </tr>
                                 `;
                             }).join('')}
@@ -2905,15 +2915,15 @@ function renderBOMs() {
                         <tfoot>
                             <tr style="font-weight: bold; background: var(--bg-secondary);">
                                 <td colspan="4" style="text-align: right;">Subtotal:</td>
-                                <td>${formatCurrency(subtotal)}</td>
+                                <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(subtotal, 18)}</td>
                             </tr>
                             <tr style="font-weight: bold; background: var(--bg-secondary);">
                                 <td colspan="4" style="text-align: right;">Profit (${profitPercent}%):</td>
-                                <td style="color: var(--success);">${formatCurrency(profit)}</td>
+                                <td style="color: var(--success); font-family: 'Courier New', monospace;">${formatCurrencyAligned(profit, 18)}</td>
                             </tr>
                             <tr style="font-weight: bold; background: var(--primary); color: white;">
                                 <td colspan="4" style="text-align: right;">Total:</td>
-                                <td>${formatCurrency(total)}</td>
+                                <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(total, 18)}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -3100,7 +3110,7 @@ function renderQuotes() {
             <td>${quote.projectName}</td>
             <td>${quote.customer ? quote.customer.name : 'Unknown'}</td>
             <td>${quote.items.length}</td>
-            <td>${formatCurrency(quote.total)}</td>
+            <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(quote.total, 20)}</td>
             <td>${new Date(quote.date).toLocaleDateString()}</td>
             <td>
                 <div class="action-buttons">
@@ -3139,21 +3149,21 @@ function renderQuotes() {
                                     <td>${item.name}</td>
                                     <td>${item.type || '-'}</td>
                                     <td>${item.quantity}</td>
-                                    <td>${formatCurrency(parseFloat(item.price))}</td>
-                                    <td>${formatCurrency((parseFloat(item.quantity) * parseFloat(item.price)))}</td>
+                                    <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(parseFloat(item.price), 18)}</td>
+                                    <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned((parseFloat(item.quantity) * parseFloat(item.price)), 18)}</td>
                                 </tr>
                             `).join('')}
                             <tr style="border-top: 2px solid #ddd; font-weight: bold;">
                                 <td colspan="4" style="text-align: right;">Subtotal:</td>
-                                <td>${formatCurrency(quote.subtotal)}</td>
+                                <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(quote.subtotal, 18)}</td>
                             </tr>
                             <tr>
                                 <td colspan="4" style="text-align: right;">Profit Margin (${quote.profitMargin}%):</td>
-                                <td>${formatCurrency(quote.profit)}</td>
+                                <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(quote.profit, 18)}</td>
                             </tr>
                             <tr style="font-weight: bold; font-size: 1.1em;">
                                 <td colspan="4" style="text-align: right;">Total Estimate:</td>
-                                <td>${formatCurrency(quote.total)}</td>
+                                <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(quote.total, 18)}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -3192,9 +3202,9 @@ function renderInvoices() {
                 <td><strong>${invoice.id}</strong></td>
                 <td>${customer ? customer.name : 'Unknown'}</td>
                 <td>${invoice.projectName}</td>
-                <td>${formatCurrency(invoice.totalAmount)}</td>
-                <td>${formatCurrency(invoice.paidAmount)}</td>
-                <td>${formatCurrency(amountDue)}</td>
+                <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(invoice.totalAmount, 20)}</td>
+                <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(invoice.paidAmount, 20)}</td>
+                <td style="font-family: 'Courier New', monospace;">${formatCurrencyAligned(amountDue, 20)}</td>
                 <td>
                     <span class="status-badge" style="background: ${statusColor};">
                         ${invoice.status.toUpperCase()}
@@ -3484,6 +3494,11 @@ function generateInvoicePDF(invoiceIndex) {
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
+        columnStyles: {
+            1: { halign: 'center' },
+            2: { halign: 'right' },
+            3: { halign: 'right' }
+        },
         foot: [
             ['', '', 'Subtotal:', formatCurrency(invoice.subtotal)],
             ['', '', `Tax/Profit (${invoice.profitMargin}%):`, formatCurrency(invoice.profit)],
@@ -3491,7 +3506,7 @@ function generateInvoicePDF(invoiceIndex) {
             ['', '', 'Paid:', formatCurrency(invoice.paidAmount)],
             ['', '', 'BALANCE DUE:', formatCurrency(invoice.totalAmount - invoice.paidAmount)]
         ],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
     });
     
     // Payment History
@@ -4059,12 +4074,17 @@ function generateQuotePDF(quoteIndex) {
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
+        columnStyles: {
+            2: { halign: 'center' },
+            3: { halign: 'right' },
+            4: { halign: 'right' }
+        },
         foot: [
             ['', '', '', 'Subtotal:', `${formatCurrency(quoteData.subtotal)}`],
             ['', '', '', `Profit (${quoteData.profitMargin}%):`, `${formatCurrency(quoteData.profit)}`],
             ['', '', '', 'TOTAL:', `${formatCurrency(quoteData.total)}`]
         ],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
     });
     
     // Terms & Conditions
