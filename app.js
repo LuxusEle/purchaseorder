@@ -5,6 +5,7 @@ let orders = [];
 let customers = [];
 let leads = [];
 let quotes = [];
+let invoices = [];
 let projects = [];
 let settings = {};
 let currentBOMLeadIndex = null;
@@ -525,6 +526,7 @@ async function loadDataFromFirebase() {
             customers = data.customers || [];
             leads = data.leads || [];
             quotes = data.quotes || [];
+            invoices = data.invoices || [];
             projects = data.projects || [];
             console.log('Data loaded from Firebase:', {
                 inventory: inventory.length,
@@ -533,6 +535,7 @@ async function loadDataFromFirebase() {
                 customers: customers.length,
                 leads: leads.length,
                 quotes: quotes.length,
+                invoices: invoices.length,
                 projects: projects.length
             });
         } else {
@@ -621,7 +624,9 @@ async function saveDataToFirebase() {
             orders: orders.length,
             customers: customers.length,
             leads: leads.length,
-            quotes: quotes.length
+            quotes: quotes.length,
+            invoices: invoices.length,
+            projects: projects.length
         });
         
         await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'companies', currentCompanyId, 'data', 'main'), {
@@ -631,6 +636,7 @@ async function saveDataToFirebase() {
             customers: customers,
             leads: leads,
             quotes: quotes,
+            invoices: invoices,
             projects: projects,
             lastUpdated: new Date().toISOString(),
             lastUpdatedBy: currentUser.email
@@ -769,6 +775,7 @@ function saveData() {
     localStorage.setItem('customers', JSON.stringify(customers));
     localStorage.setItem('leads', JSON.stringify(leads));
     localStorage.setItem('quotes', JSON.stringify(quotes));
+    localStorage.setItem('invoices', JSON.stringify(invoices));
     localStorage.setItem('projects', JSON.stringify(projects));
     
     // Also save to Firebase
@@ -875,6 +882,7 @@ function switchPage(pageName) {
         leads: 'Lead Management',
         boms: 'Bills of Materials (BOMs)',
         quotes: 'Quotes & Estimates',
+        invoices: 'Invoices',
         projects: 'Active Projects',
         finance: 'Financial Overview',
         settings: 'Settings'
@@ -890,6 +898,8 @@ function switchPage(pageName) {
         renderFinance();
     } else if (pageName === 'boms') {
         renderBOMs();
+    } else if (pageName === 'invoices') {
+        renderInvoices();
     }
 }
 
@@ -3145,7 +3155,326 @@ function viewQuotePDF(type, index) {
     }
 }
 
-// Convert Quote to Project
+// Invoice Management
+function renderInvoices() {
+    const tbody = document.getElementById('invoicesTable');
+    
+    if (invoices.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No invoices created yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = invoices.map((invoice, index) => {
+        const customer = customers.find(c => c.id === invoice.customerId);
+        const amountDue = invoice.totalAmount - invoice.paidAmount;
+        const statusColor = invoice.status === 'paid' ? '#10b981' : 
+                           invoice.status === 'partial' ? '#f59e0b' : '#ef4444';
+        
+        return `
+            <tr>
+                <td><strong>${invoice.id}</strong></td>
+                <td>${customer ? customer.name : 'Unknown'}</td>
+                <td>${invoice.projectName}</td>
+                <td>${formatCurrency(invoice.totalAmount)}</td>
+                <td>${formatCurrency(invoice.paidAmount)}</td>
+                <td>${formatCurrency(amountDue)}</td>
+                <td>
+                    <span class="status-badge" style="background: ${statusColor};">
+                        ${invoice.status.toUpperCase()}
+                    </span>
+                </td>
+                <td>${new Date(invoice.invoiceDate).toLocaleDateString()}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-action btn-view" onclick="viewInvoiceDetails(${index})">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="btn-action btn-primary" onclick="generateInvoicePDF(${index})" style="background: #059669;">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                        ${invoice.status !== 'paid' ? `
+                        <button class="btn-action btn-success" onclick="recordInvoicePayment(${index})" style="background: #10b981;">
+                            <i class="fas fa-dollar-sign"></i> Pay
+                        </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterInvoices() {
+    const searchTerm = document.getElementById('invoiceSearchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#invoicesTable tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+}
+
+let invoiceSortColumn = null;
+let invoiceSortDirection = 'asc';
+
+function sortInvoices(column) {
+    if (invoiceSortColumn === column) {
+        invoiceSortDirection = invoiceSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        invoiceSortColumn = column;
+        invoiceSortDirection = 'asc';
+    }
+    
+    const sortedInvoices = [...invoices].sort((a, b) => {
+        let aVal, bVal;
+        
+        switch(column) {
+            case 'id':
+                aVal = a.id;
+                bVal = b.id;
+                break;
+            case 'customer':
+                const aCustomer = customers.find(c => c.id === a.customerId);
+                const bCustomer = customers.find(c => c.id === b.customerId);
+                aVal = aCustomer ? aCustomer.name : '';
+                bVal = bCustomer ? bCustomer.name : '';
+                break;
+            case 'project':
+                aVal = a.projectName;
+                bVal = b.projectName;
+                break;
+            case 'total':
+                aVal = a.totalAmount;
+                bVal = b.totalAmount;
+                break;
+            case 'paid':
+                aVal = a.paidAmount;
+                bVal = b.paidAmount;
+                break;
+            case 'due':
+                aVal = a.totalAmount - a.paidAmount;
+                bVal = b.totalAmount - b.paidAmount;
+                break;
+            case 'status':
+                aVal = a.status;
+                bVal = b.status;
+                break;
+            case 'date':
+                aVal = new Date(a.invoiceDate).getTime();
+                bVal = new Date(b.invoiceDate).getTime();
+                break;
+            default:
+                return 0;
+        }
+        
+        if (aVal < bVal) return invoiceSortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return invoiceSortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+    
+    invoices = sortedInvoices;
+    renderInvoices();
+}
+
+async function recordInvoicePayment(index) {
+    const invoice = invoices[index];
+    const amountDue = invoice.totalAmount - invoice.paidAmount;
+    
+    const payment = await showPrompt(
+        `Record payment for Invoice ${invoice.id}\nCustomer: ${customers.find(c => c.id === invoice.customerId)?.name}\n\nTotal: ${formatCurrency(invoice.totalAmount)}\nPaid: ${formatCurrency(invoice.paidAmount)}\nAmount Due: ${formatCurrency(amountDue)}\n\nEnter payment amount:`,
+        amountDue.toFixed(2),
+        'Record Payment'
+    );
+    
+    if (payment === null) return;
+    
+    const amount = parseFloat(payment) || 0;
+    if (amount <= 0) {
+        showAlert('Please enter a valid payment amount.');
+        return;
+    }
+    
+    if (amount > amountDue) {
+        showAlert('Payment amount exceeds amount due.');
+        return;
+    }
+    
+    // Record payment
+    invoice.paidAmount += amount;
+    invoice.payments.push({
+        amount: amount,
+        date: new Date().toISOString().split('T')[0],
+        method: 'Cash' // Can be enhanced with payment method selection
+    });
+    
+    // Update status
+    if (invoice.paidAmount >= invoice.totalAmount) {
+        invoice.status = 'paid';
+        invoice.paidDate = new Date().toISOString().split('T')[0];
+    } else {
+        invoice.status = 'partial';
+    }
+    
+    // Update linked project if exists
+    if (invoice.projectId) {
+        const project = projects.find(p => p.id === invoice.projectId);
+        if (project) {
+            project.advanceReceived += amount;
+            project.balanceRemaining -= amount;
+            if (project.balanceRemaining <= 0) {
+                project.status = 'completed';
+            }
+        }
+    }
+    
+    saveData();
+    await saveDataToFirebase();
+    renderInvoices();
+    renderProjects();
+    renderFinance();
+    
+    showAlert(`Payment recorded successfully!\n\nInvoice: ${invoice.id}\nAmount Paid: ${formatCurrency(amount)}\nRemaining: ${formatCurrency(invoice.totalAmount - invoice.paidAmount)}`, 'Payment Success');
+}
+
+function viewInvoiceDetails(index) {
+    const invoice = invoices[index];
+    const customer = customers.find(c => c.id === invoice.customerId);
+    const paymentHistory = invoice.payments.map(p => 
+        `${new Date(p.date).toLocaleDateString()}: ${formatCurrency(p.amount)}`
+    ).join('\n');
+    
+    showAlert(`Invoice Details:\n\nInvoice #: ${invoice.id}\nCustomer: ${customer?.name}\nProject: ${invoice.projectName}\n\nTotal Amount: ${formatCurrency(invoice.totalAmount)}\nPaid Amount: ${formatCurrency(invoice.paidAmount)}\nAmount Due: ${formatCurrency(invoice.totalAmount - invoice.paidAmount)}\n\nStatus: ${invoice.status.toUpperCase()}\nInvoice Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}\n${invoice.paidDate ? `Paid Date: ${new Date(invoice.paidDate).toLocaleDateString()}` : ''}\n\nPayment History:\n${paymentHistory || 'No payments yet'}`, 'Invoice Details');
+}
+
+function generateInvoicePDF(invoiceIndex) {
+    const invoice = invoices[invoiceIndex];
+    if (!invoice) {
+        showAlert('Invoice not found');
+        return;
+    }
+    
+    const customer = customers.find(c => c.id === invoice.customerId);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Convert primary color hex to RGB
+    const primaryColorRGB = hexToRgb(settings.primaryColor || '#4f46e5');
+    
+    // Add logo if exists
+    let startY = 35;
+    if (settings.companyLogo) {
+        try {
+            doc.addImage(settings.companyLogo, 'PNG', 14, 15, 40, 20);
+            startY = 40;
+        } catch (e) {
+            console.error('Error adding logo:', e);
+        }
+    }
+    
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b);
+    doc.text('INVOICE', 105, 20, { align: 'center' });
+    
+    // Company Info
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(settings.companyName || 'Company Name', 14, startY);
+    doc.text(settings.companyAddress || 'Address', 14, startY + 5);
+    doc.text(`Phone: ${settings.companyPhone || 'Phone'}`, 14, startY + 10);
+    doc.text(`Email: ${settings.companyEmail || 'Email'}`, 14, startY + 15);
+    
+    // Invoice Info
+    doc.setFontSize(10);
+    doc.text(`Invoice #: ${invoice.id}`, 140, startY);
+    doc.text(`Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`, 140, startY + 5);
+    doc.text(`Status: ${invoice.status.toUpperCase()}`, 140, startY + 10);
+    if (invoice.dueDate) {
+        doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`, 140, startY + 15);
+    }
+    
+    // Customer Info
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('BILL TO:', 14, startY + 30);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    
+    if (customer) {
+        doc.text(customer.name, 14, startY + 37);
+        if (customer.company) doc.text(customer.company, 14, startY + 42);
+        doc.text(customer.email || '', 14, startY + 47);
+        doc.text(customer.phone || '', 14, startY + 52);
+    }
+    
+    // Project Info
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Project: ${invoice.projectName}`, 14, startY + 62);
+    doc.setFont(undefined, 'normal');
+    
+    // Items Table
+    const tableData = invoice.items.map(item => [
+        item.name,
+        formatNumber(item.quantity),
+        formatCurrency(item.price),
+        formatCurrency(item.quantity * item.price)
+    ]);
+    
+    doc.autoTable({
+        startY: startY + 70,
+        head: [['Description', 'Quantity', 'Unit Price', 'Amount']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
+        foot: [
+            ['', '', 'Subtotal:', formatCurrency(invoice.subtotal)],
+            ['', '', `Tax/Profit (${invoice.profitMargin}%):`, formatCurrency(invoice.profit)],
+            ['', '', 'TOTAL:', formatCurrency(invoice.totalAmount)],
+            ['', '', 'Paid:', formatCurrency(invoice.paidAmount)],
+            ['', '', 'BALANCE DUE:', formatCurrency(invoice.totalAmount - invoice.paidAmount)]
+        ],
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+    
+    // Payment History
+    if (invoice.payments.length > 0) {
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('PAYMENT HISTORY', 14, finalY);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        
+        let yPos = finalY + 7;
+        invoice.payments.forEach(payment => {
+            doc.text(`${new Date(payment.date).toLocaleDateString()}: ${formatCurrency(payment.amount)}`, 14, yPos);
+            yPos += 5;
+        });
+    }
+    
+    // Terms
+    const termsY = doc.lastAutoTable.finalY + (invoice.payments.length > 0 ? 35 : 10);
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('PAYMENT TERMS:', 14, termsY);
+    doc.setFont(undefined, 'normal');
+    const terms = doc.splitTextToSize(settings.invoiceTerms || 'Payment due upon receipt.', 180);
+    doc.text(terms, 14, termsY + 5);
+    
+    // Footer
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFontSize(9);
+    doc.setTextColor(128, 128, 128);
+    doc.text('Thank you for your business!', 105, pageHeight - 20, { align: 'center' });
+    doc.text(`Questions? Contact us at ${settings.companyEmail || 'email'}`, 105, pageHeight - 15, { align: 'center' });
+    
+    // Save PDF
+    doc.save(`Invoice_${invoice.id}_${customer ? customer.name.replace(/\s/g, '_') : 'Customer'}.pdf`);
+}
+
+
+// Convert Quote to Invoice and Project
 async function convertQuoteToProject(type, index) {
     let quote, customer, items, total, subtotal, profit;
     
@@ -3196,10 +3525,37 @@ async function convertQuoteToProject(type, index) {
     
     const advance = parseFloat(advancePayment) || 0;
     
+    // Create Invoice first
+    const invoiceId = 'INV-' + String(invoices.length + 1).padStart(5, '0');
+    const invoice = {
+        id: invoiceId,
+        quoteId: quote.id,
+        customerId: quote.customerId,
+        projectName: quote.projectName,
+        items: quote.items,
+        subtotal: quote.subtotal,
+        profit: quote.profit,
+        profitMargin: quote.profitMargin,
+        totalAmount: quote.total,
+        paidAmount: advance,
+        invoiceDate: new Date().toISOString().split('T')[0],
+        dueDate: new Date(Date.now() + (settings.paymentDue || 30) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: advance >= quote.total ? 'paid' : (advance > 0 ? 'partial' : 'unpaid'),
+        payments: advance > 0 ? [{
+            amount: advance,
+            date: new Date().toISOString().split('T')[0],
+            method: 'Advance Payment'
+        }] : [],
+        paidDate: advance >= quote.total ? new Date().toISOString().split('T')[0] : null
+    };
+    
+    invoices.push(invoice);
+    
     // Create project
     const projectId = 'PRJ-' + String(projects.length + 1).padStart(5, '0');
     const project = {
         id: projectId,
+        invoiceId: invoiceId,
         quoteId: quote.id,
         projectName: quote.projectName,
         customerId: quote.customerId,
@@ -3216,6 +3572,9 @@ async function convertQuoteToProject(type, index) {
         paidToPOs: 0,
         pendingPOPayments: 0
     };
+    
+    // Link invoice to project
+    invoice.projectId = projectId;
     
     // Group items by supplier to create POs
     const supplierGroups = {};
@@ -3273,12 +3632,13 @@ async function convertQuoteToProject(type, index) {
     
     // Update views
     renderQuotes();
+    renderInvoices();
     renderOrders();
     renderProjects();
     renderFinance();
     updateDashboard();
     
-    showAlert(`âœ… Project Created Successfully!\n\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${formatCurrency(advance)}\nBalance: ${formatCurrency(project.balanceRemaining)}`);
+    showAlert(`✅ Invoice & Project Created Successfully!\n\nInvoice ID: ${invoiceId}\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${formatCurrency(advance)}\nBalance Due: ${formatCurrency(project.balanceRemaining)}`, 'Success');
 }
 
 // Settings Management

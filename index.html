@@ -83,18 +83,12 @@
                     <i class="fas fa-chart-line"></i>
                     <span>Dashboard</span>
                 </a>
-                <a href="#" class="nav-item" data-page="inventory">
-                    <i class="fas fa-boxes"></i>
-                    <span>Inventory</span>
-                </a>
-                <a href="#" class="nav-item" data-page="suppliers">
-                    <i class="fas fa-truck"></i>
-                    <span>Suppliers</span>
-                </a>
-                <a href="#" class="nav-item" data-page="orders">
-                    <i class="fas fa-file-invoice"></i>
-                    <span>Purchase Orders</span>
-                </a>
+                
+                <!-- Sales Section -->
+                <div class="nav-section-header">
+                    <i class="fas fa-hand-holding-usd"></i>
+                    <span>SALES</span>
+                </div>
                 <a href="#" class="nav-item" data-page="customers">
                     <i class="fas fa-users"></i>
                     <span>Customers</span>
@@ -103,22 +97,56 @@
                     <i class="fas fa-user-plus"></i>
                     <span>Leads</span>
                 </a>
-                <a href="#" class="nav-item" data-page="boms">
-                    <i class="fas fa-calculator"></i>
-                    <span>BOMs</span>
-                </a>
                 <a href="#" class="nav-item" data-page="quotes">
                     <i class="fas fa-file-invoice-dollar"></i>
-                    <span>Quotes/Estimates</span>
+                    <span>Quotes</span>
+                </a>
+                <a href="#" class="nav-item" data-page="invoices">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>Invoices</span>
                 </a>
                 <a href="#" class="nav-item" data-page="projects">
                     <i class="fas fa-project-diagram"></i>
                     <span>Projects</span>
                 </a>
+                
+                <!-- Operations Section -->
+                <div class="nav-section-header">
+                    <i class="fas fa-cogs"></i>
+                    <span>OPERATIONS</span>
+                </div>
+                <a href="#" class="nav-item" data-page="suppliers">
+                    <i class="fas fa-truck"></i>
+                    <span>Suppliers</span>
+                </a>
+                <a href="#" class="nav-item" data-page="inventory">
+                    <i class="fas fa-boxes"></i>
+                    <span>Inventory</span>
+                </a>
+                <a href="#" class="nav-item" data-page="boms">
+                    <i class="fas fa-calculator"></i>
+                    <span>BOMs</span>
+                </a>
+                <a href="#" class="nav-item" data-page="orders">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Purchase Orders</span>
+                </a>
+                
+                <!-- Finance Section -->
+                <div class="nav-section-header">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>FINANCE</span>
+                </div>
                 <a href="#" class="nav-item" data-page="finance">
                     <i class="fas fa-money-bill-wave"></i>
-                    <span>Finance</span>
+                    <span>Financial Overview</span>
                 </a>
+                
+                <!-- Admin Section -->
+                <div class="nav-section-header">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>ADMIN</span>
+                </div>
                 <a href="#" class="nav-item" data-page="settings">
                     <i class="fas fa-cog"></i>
                     <span>Settings</span>
@@ -494,6 +522,39 @@
                         <tbody id="quotesTable">
                             <tr>
                                 <td colspan="8" class="empty-state">No quotes generated yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Invoices Page -->
+            <div id="invoices" class="page">
+                <div class="page-actions">
+                    <h2 style="margin: 0;">Invoices</h2>
+                    <div style="display: flex; gap: 12px;">
+                        <input type="text" id="invoiceSearchInput" placeholder="Search invoices..." style="padding: 10px 16px; border: 1px solid var(--border-color); border-radius: 6px; width: 300px;" oninput="filterInvoices()">
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th onclick="sortInvoices('id')" style="cursor: pointer;">Invoice # <i class="fas fa-sort"></i></th>
+                                <th onclick="sortInvoices('customer')" style="cursor: pointer;">Customer <i class="fas fa-sort"></i></th>
+                                <th onclick="sortInvoices('project')" style="cursor: pointer;">Project <i class="fas fa-sort"></i></th>
+                                <th onclick="sortInvoices('total')" style="cursor: pointer;">Total Amount <i class="fas fa-sort"></i></th>
+                                <th onclick="sortInvoices('paid')" style="cursor: pointer;">Paid Amount <i class="fas fa-sort"></i></th>
+                                <th onclick="sortInvoices('due')" style="cursor: pointer;">Amount Due <i class="fas fa-sort"></i></th>
+                                <th onclick="sortInvoices('status')" style="cursor: pointer;">Status <i class="fas fa-sort"></i></th>
+                                <th onclick="sortInvoices('date')" style="cursor: pointer;">Date <i class="fas fa-sort"></i></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoicesTable">
+                            <tr>
+                                <td colspan="9" class="empty-state">No invoices created yet</td>
                             </tr>
                         </tbody>
                     </table>
