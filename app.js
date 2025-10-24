@@ -1654,7 +1654,7 @@ function renderLeadsKanban() {
                 const leadIndex = leads.indexOf(lead);
                 const customer = customers.find(c => c.id === lead.customerId);
                 const customerName = customer ? customer.name : 'N/A';
-                const estimateValue = lead.bom ? `$${lead.bom.total.toFixed(2)}` : 'TBD';
+                const estimateValue = (lead.bom && lead.bom.total) ? formatCurrency(lead.bom.total) : 'TBD';
                 
                 return `
                     <div class="kanban-card" draggable="true" data-lead-index="${leadIndex}" 
@@ -1700,7 +1700,7 @@ function renderLeadsTable() {
     tbody.innerHTML = leads.map((lead, index) => {
         const customer = customers.find(c => c.id === lead.customerId);
         const customerName = customer ? customer.name : 'N/A';
-        const estimateValue = lead.bom ? `$${lead.bom.total.toFixed(2)}` : 'TBD';
+        const estimateValue = (lead.bom && lead.bom.total) ? formatCurrency(lead.bom.total) : 'TBD';
         
         return `
         <tr class="main-row" data-index="${index}">
@@ -1771,12 +1771,12 @@ function renderLeadsTable() {
                         <div style="margin-top: 16px; padding: 12px; background: rgba(20, 184, 166, 0.05); border-radius: 8px; border: 1px solid rgba(20, 184, 166, 0.2);">
                             <strong style="display: block; margin-bottom: 8px;">Estimate Details:</strong>
                             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 14px;">
-                                <div>Items: ${lead.bom.items.length}</div>
-                                <div>Cost: $${lead.bom.subtotal.toFixed(2)}</div>
-                                <div>Profit: $${lead.bom.profit.toFixed(2)} (${lead.bom.profitPercent}%)</div>
+                                <div>Items: ${lead.bom.items ? lead.bom.items.length : 0}</div>
+                                <div>Cost: ${formatCurrency(lead.bom.subtotal || 0)}</div>
+                                <div>Profit: ${formatCurrency(lead.bom.profit || 0)} (${lead.bom.profitPercent || 0}%)</div>
                             </div>
                             <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(20, 184, 166, 0.2);">
-                                <strong>Total Estimate: $${lead.bom.total.toFixed(2)}</strong>
+                                <strong>Total Estimate: ${formatCurrency(lead.bom.total || 0)}</strong>
                             </div>
                         </div>
                     ` : ''}
@@ -2282,8 +2282,8 @@ function generateEstimatePDF() {
         item.name,
         item.type,
         item.quantity.toString(),
-        `${currencySymbol}${item.unitPrice.toFixed(2)}`,
-        `${currencySymbol}${(item.quantity * item.unitPrice).toFixed(2)}`
+        formatCurrency(item.unitPrice || 0),
+        formatCurrency((item.quantity * (item.unitPrice || 0)))
     ]);
     
     doc.autoTable({
@@ -2293,9 +2293,9 @@ function generateEstimatePDF() {
         theme: 'striped',
         headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
         foot: [
-            ['', '', '', 'Subtotal:', `${currencySymbol}${lead.bom.subtotal.toFixed(2)}`],
-            ['', '', '', `Profit (${lead.bom.profitPercent}%):`, `${currencySymbol}${lead.bom.profit.toFixed(2)}`],
-            ['', '', '', 'TOTAL:', `${currencySymbol}${lead.bom.total.toFixed(2)}`]
+            ['', '', '', 'Subtotal:', formatCurrency(lead.bom.subtotal || 0)],
+            ['', '', '', `Profit (${lead.bom.profitPercent || 0}%):`, formatCurrency(lead.bom.profit || 0)],
+            ['', '', '', 'TOTAL:', formatCurrency(lead.bom.total || 0)]
         ],
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
