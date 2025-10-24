@@ -3339,11 +3339,49 @@ async function recordInvoicePayment(index) {
 function viewInvoiceDetails(index) {
     const invoice = invoices[index];
     const customer = customers.find(c => c.id === invoice.customerId);
-    const paymentHistory = invoice.payments.map(p => 
-        `${new Date(p.date).toLocaleDateString()}: ${formatCurrency(p.amount)}`
-    ).join('\n');
     
-    showAlert(`Invoice Details:\n\nInvoice #: ${invoice.id}\nCustomer: ${customer?.name}\nProject: ${invoice.projectName}\n\nTotal Amount: ${formatCurrency(invoice.totalAmount)}\nPaid Amount: ${formatCurrency(invoice.paidAmount)}\nAmount Due: ${formatCurrency(invoice.totalAmount - invoice.paidAmount)}\n\nStatus: ${invoice.status.toUpperCase()}\nInvoice Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}\n${invoice.paidDate ? `Paid Date: ${new Date(invoice.paidDate).toLocaleDateString()}` : ''}\n\nPayment History:\n${paymentHistory || 'No payments yet'}`, 'Invoice Details');
+    // Format payment history professionally
+    const paymentHistory = invoice.payments.length > 0 
+        ? invoice.payments.map(p => 
+            `  • ${new Date(p.date).toLocaleDateString()} - ${formatCurrency(p.amount)} (${p.method || 'Payment'})`
+          ).join('\n')
+        : '  No payments recorded yet';
+    
+    const amountDue = invoice.totalAmount - invoice.paidAmount;
+    const statusIcon = invoice.status === 'paid' ? '✓' : invoice.status === 'partial' ? '◐' : '○';
+    
+    const message = `
+╔═══════════════════════════════════════════════╗
+           INVOICE DETAILS
+╚═══════════════════════════════════════════════╝
+
+INVOICE INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Invoice #:      ${invoice.id}
+  Customer:       ${customer?.name || 'Unknown'}
+  Project:        ${invoice.projectName}
+  Status:         ${statusIcon} ${invoice.status.toUpperCase()}
+
+DATES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Invoice Date:   ${new Date(invoice.invoiceDate).toLocaleDateString()}
+  Due Date:       ${invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'Not set'}
+  ${invoice.paidDate ? `Paid Date:      ${new Date(invoice.paidDate).toLocaleDateString()}` : ''}
+
+FINANCIAL SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Total Amount:         ${formatCurrency(invoice.totalAmount)}
+  Paid Amount:          ${formatCurrency(invoice.paidAmount)}
+  Amount Due:           ${formatCurrency(amountDue)}
+  
+  Payment Progress:     ${((invoice.paidAmount / invoice.totalAmount) * 100).toFixed(1)}%
+
+PAYMENT HISTORY (${invoice.payments.length})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${paymentHistory}
+`.trim();
+    
+    showAlert(message, 'Invoice Details');
 }
 
 function generateInvoicePDF(invoiceIndex) {
@@ -4437,12 +4475,55 @@ function renderProjects() {
 // View Project Details
 function viewProjectDetails(index) {
     const project = projects[index];
+    
+    // Format PO details with better structure
     const poDetails = project.purchaseOrders.map(poId => {
         const po = orders.find(o => o.id === poId);
-        return po ? `${po.id} - ${po.supplier}: ${formatCurrency(po.totalAmount)} (${po.status})` : poId;
-    }).join('\n');
+        if (!po) return `  • ${poId}`;
+        
+        const statusIcon = po.status === 'settled' ? '✓' : po.status === 'pending' ? '○' : '◐';
+        return `  ${statusIcon} ${po.id} - ${po.supplier}\n    Amount: ${formatCurrency(po.totalAmount)} (${po.status.toUpperCase()})`;
+    }).join('\n\n');
     
-    showAlert(`Project Details:\n\nID: ${project.id}\nName: ${project.projectName}\nCustomer: ${project.customerName}\n\nFinancials:\nTotal Value: ${formatCurrency(project.totalValue)}\nAdvance Received: ${formatCurrency(project.advanceReceived)}\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nPurchase Orders:\n${poDetails}\n\nTotal PO Cost: ${formatCurrency(project.totalPOCost)}\nPaid: ${formatCurrency(project.paidToPOs)}\nPending: ${formatCurrency(project.pendingPOPayments)}`);
+    // Create professional formatted message
+    const message = `
+╔═══════════════════════════════════════════════╗
+         PROJECT DETAILS
+╚═══════════════════════════════════════════════╝
+
+PROJECT INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Project ID:     ${project.id}
+  Project Name:   ${project.projectName}
+  Customer:       ${project.customerName}
+  Status:         ${project.status.toUpperCase()}
+  Created:        ${new Date(project.createdDate).toLocaleDateString()}
+
+FINANCIAL SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Total Value:          ${formatCurrency(project.totalValue)}
+  Advance Received:     ${formatCurrency(project.advanceReceived)}
+  Balance Due:          ${formatCurrency(project.balanceRemaining)}
+
+PURCHASE ORDERS (${project.purchaseOrders.length})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${poDetails || '  No purchase orders yet'}
+
+PO PAYMENT SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Total PO Cost:        ${formatCurrency(project.totalPOCost)}
+  Paid to Suppliers:    ${formatCurrency(project.paidToPOs)}
+  Pending Payments:     ${formatCurrency(project.pendingPOPayments)}
+
+PROFIT ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Revenue (Advance):    ${formatCurrency(project.advanceReceived)}
+  Costs (PO Paid):      ${formatCurrency(project.paidToPOs)}
+  Current Profit:       ${formatCurrency(project.advanceReceived - project.paidToPOs)}
+  Profit Margin:        ${project.profitMargin}%
+`.trim();
+    
+    showAlert(message, 'Project Details');
 }
 
 // Record Payment to Customer
