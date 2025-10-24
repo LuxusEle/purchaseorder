@@ -16,6 +16,8 @@ let currentUserId = null;
 let currentCompanyId = null;
 let currentUserRole = 'owner'; // 'owner' or 'staff'
 let staffMembers = [];
+let leadSortColumn = null;
+let leadSortDirection = 'asc';
 
 // Helper function to format currency
 function formatCurrency(amount) {
@@ -951,8 +953,8 @@ function filterInventory(filter) {
             <td><span class="badge badge-${item.type}">${item.type}</span></td>
             <td>${item.supplier}</td>
             <td>${item.quantity}</td>
-            <td>$${item.price.toFixed(2)}</td>
-            <td>$${(item.quantity * item.price).toFixed(2)}</td>
+            <td>${formatCurrency(item.price)}</td>
+            <td>${formatCurrency(item.quantity * item.price)}</td>
             <td>
                 <div class="action-buttons">
                     <button class="btn-action btn-edit" onclick="editItem(${index})">
@@ -1270,7 +1272,7 @@ function handleCreateOrder(e) {
 
 function viewOrder(index) {
     const order = orders[index];
-    alert(`Order Details:\n\nID: ${order.id}\nSupplier: ${order.supplier}\nDate: ${order.date}\nTotal: $${order.totalAmount.toFixed(2)}\nStatus: ${order.status}\n\nItems:\n${order.items.map(i => `- ${i.name} (${i.quantity}x @ $${i.price})`).join('\n')}`);
+    alert(`Order Details:\n\nID: ${order.id}\nSupplier: ${order.supplier}\nDate: ${order.date}\nTotal: ${formatCurrency(order.totalAmount)}\nStatus: ${order.status}\n\nItems:\n${order.items.map(i => `- ${i.name} (${i.quantity}x @ ${formatCurrency(i.price)})`).join('\n')}`);
 }
 
 function deleteOrder(index) {
@@ -1336,7 +1338,7 @@ function addOrderItem() {
     newRow.innerHTML = `
         <select class="order-item-select" required>
             <option value="">Select Item</option>
-            ${inventory.map(item => `<option value="${item.name}">${item.name} - $${item.price}</option>`).join('')}
+            ${inventory.map(item => `<option value="${item.name}">${item.name} - ${formatCurrency(item.price)}</option>`).join('')}
         </select>
         <input type="number" class="order-item-quantity" placeholder="Qty" min="1" required>
         <button type="button" class="btn-icon" onclick="removeOrderItem(this)">
@@ -1359,7 +1361,7 @@ function updateItemSelects() {
     const selects = document.querySelectorAll('.order-item-select');
     selects.forEach(select => {
         select.innerHTML = '<option value="">Select Item</option>' +
-            inventory.map(item => `<option value="${item.name}">${item.name} - $${item.price}</option>`).join('');
+            inventory.map(item => `<option value="${item.name}">${item.name} - ${formatCurrency(item.price)}</option>`).join('');
     });
 }
 
@@ -1828,6 +1830,56 @@ function switchLeadView(view) {
     }
 }
 
+function sortLeadsTable(column) {
+    // Toggle direction if same column, otherwise reset to ascending
+    if (leadSortColumn === column) {
+        leadSortDirection = leadSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        leadSortColumn = column;
+        leadSortDirection = 'asc';
+    }
+    
+    // Sort leads array
+    leads.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch(column) {
+            case 'id':
+                aVal = a.id;
+                bVal = b.id;
+                break;
+            case 'customer':
+                const customerA = customers.find(c => c.id === a.customerId);
+                const customerB = customers.find(c => c.id === b.customerId);
+                aVal = customerA ? customerA.name : '';
+                bVal = customerB ? customerB.name : '';
+                break;
+            case 'stage':
+                aVal = a.stage;
+                bVal = b.stage;
+                break;
+            case 'source':
+                aVal = a.source;
+                bVal = b.source;
+                break;
+            case 'value':
+                aVal = (a.bom && a.bom.total) ? a.bom.total : 0;
+                bVal = (b.bom && b.bom.total) ? b.bom.total : 0;
+                break;
+            default:
+                return 0;
+        }
+        
+        // Compare values
+        if (aVal < bVal) return leadSortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return leadSortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+    
+    // Re-render table
+    renderLeadsTable();
+}
+
 function filterLeads(filter) {
     // This function is no longer needed with Kanban view but kept for compatibility
     switchLeadView('table');
@@ -2069,7 +2121,7 @@ function openBOMModal(leadIndex, event) {
     const bomItemSelect = document.getElementById('bomItemSelect');
     bomItemSelect.innerHTML = '<option value="">Select Item from Inventory</option>' +
         inventory.map((item, idx) => 
-            `<option value="${idx}">${item.name} - ${item.type} - $${item.price.toFixed(2)}</option>`
+            `<option value="${idx}">${item.name} - ${item.type} - ${formatCurrency(item.price)}</option>`
         ).join('');
     
     // Load existing BOM if available
@@ -2153,8 +2205,8 @@ function renderBOMItems(items) {
             <td>${item.name}</td>
             <td><span class="badge badge-${item.type}">${item.type}</span></td>
             <td>${item.quantity}</td>
-            <td>$${item.unitPrice.toFixed(2)}</td>
-            <td>$${(item.quantity * item.unitPrice).toFixed(2)}</td>
+            <td>${formatCurrency(item.unitPrice)}</td>
+            <td>${formatCurrency(item.quantity * item.unitPrice)}</td>
             <td>
                 <button class="btn-icon" onclick="removeBOMItem(${index})">
                     <i class="fas fa-trash"></i>
@@ -2175,9 +2227,9 @@ function updateBOMTotals() {
     const profit = subtotal * (profitPercent / 100);
     const total = subtotal + profit;
     
-    document.getElementById('bomSubtotal').textContent = `$${subtotal.toFixed(2)}`;
-    document.getElementById('bomProfit').textContent = `$${profit.toFixed(2)}`;
-    document.getElementById('bomTotal').textContent = `$${total.toFixed(2)}`;
+    document.getElementById('bomSubtotal').textContent = formatCurrency(subtotal);
+    document.getElementById('bomProfit').textContent = formatCurrency(profit);
+    document.getElementById('bomTotal').textContent = formatCurrency(total);
 }
 
 function saveBOM() {
