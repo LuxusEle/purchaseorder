@@ -25,9 +25,15 @@ let customConfirmCallback = null;
 let customPromptCallback = null;
 
 function showAlert(message, title = 'Notice') {
+    const modal = document.getElementById('customAlertModal');
+    if (!modal) {
+        // Fallback to browser alert if DOM not ready
+        alert(message);
+        return;
+    }
     document.getElementById('customAlertTitle').textContent = title;
     document.getElementById('customAlertMessage').textContent = message;
-    document.getElementById('customAlertModal').classList.add('active');
+    modal.classList.add('active');
 }
 
 function closeCustomAlert() {
@@ -40,9 +46,15 @@ function closeCustomAlert() {
 
 function showConfirm(message, title = 'Confirm Action') {
     return new Promise((resolve) => {
+        const modal = document.getElementById('customConfirmModal');
+        if (!modal) {
+            // Fallback to browser confirm if DOM not ready
+            resolve(confirm(message));
+            return;
+        }
         document.getElementById('customConfirmTitle').textContent = title;
         document.getElementById('customConfirmMessage').textContent = message;
-        document.getElementById('customConfirmModal').classList.add('active');
+        modal.classList.add('active');
         customConfirmCallback = resolve;
     });
 }
@@ -244,13 +256,13 @@ function setupAuthentication() {
                     return;
                 }
             } catch (error) {
-                alert('Login failed: ' + error.message);
+                showAlert('Login failed: ' + error.message, 'Login Error');
             }
         } else {
             try {
                 await window.firebaseSignIn(window.firebaseAuth, email, password);
             } catch (error) {
-                alert('Login failed: ' + error.message);
+                showAlert('Login failed: ' + error.message, 'Login Error');
             }
         }
     });
@@ -279,10 +291,10 @@ function setupAuthentication() {
                 createdAt: new Date().toISOString()
             });
             
-            showAlert('Account created successfully! Please login.');
+            showAlert('Account created successfully! Please login.', 'Success');
             showLoginForm();
         } catch (error) {
-            alert('Registration failed: ' + error.message);
+            showAlert('Registration failed: ' + error.message, 'Registration Error');
         }
     });
 }
@@ -350,7 +362,7 @@ async function handleLogout() {
         currentCompanyId = null;
         currentUserRole = 'owner';
     } catch (error) {
-        alert('Logout failed: ' + error.message);
+        showAlert('Logout failed: ' + error.message, 'Logout Error');
     }
 }
 
