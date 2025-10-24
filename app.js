@@ -19,8 +19,12 @@ let staffMembers = [];
 
 // Helper function to format currency
 function formatCurrency(amount) {
+    // Handle undefined, null, or invalid values
+    if (amount === undefined || amount === null || isNaN(amount)) {
+        amount = 0;
+    }
     const symbol = settings.currencySymbol || 'Rs';
-    const formattedAmount = amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const formattedAmount = parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     return `${symbol} ${formattedAmount}`;
 }
 
@@ -553,10 +557,21 @@ async function handleLogoUpload(input) {
     }
     
     try {
+        // Check if Firebase Storage is available
+        if (!window.firebaseStorage) {
+            throw new Error('Firebase Storage is not initialized');
+        }
+        
         // Upload to Firebase Storage
-        const storageRef = window.firebaseStorageRef(window.firebaseStorage, `logos/${currentCompanyId}/${file.name}`);
+        const timestamp = Date.now();
+        const storageRef = window.firebaseStorageRef(window.firebaseStorage, `logos/${currentCompanyId}/${timestamp}_${file.name}`);
+        
+        console.log('Uploading logo to Firebase Storage...');
         await window.firebaseUploadBytes(storageRef, file);
+        console.log('Logo uploaded, getting download URL...');
+        
         const downloadURL = await window.firebaseGetDownloadURL(storageRef);
+        console.log('Download URL obtained:', downloadURL);
         
         // Save URL to settings
         document.getElementById('settingsCompanyLogo').value = downloadURL;
@@ -569,7 +584,9 @@ async function handleLogoUpload(input) {
         
         alert('Logo uploaded successfully!');
     } catch (error) {
-        alert('Error uploading logo: ' + error.message);
+        console.error('Error uploading logo:', error);
+        alert('Error uploading logo: ' + error.message + '\n\nPlease check your internet connection and try again.');
+        input.value = '';
     }
 }
 
@@ -767,7 +784,11 @@ function updateDashboard() {
     const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
     document.getElementById('pendingOrders').textContent = pendingOrdersCount;
     
-    const totalValue = inventory.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    const totalValue = inventory.reduce((sum, item) => {
+        const qty = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.price) || 0;
+        return sum + (qty * price);
+    }, 0);
     document.getElementById('totalValue').textContent = formatCurrency(totalValue);
     
     // Count active leads (not won or lost)
