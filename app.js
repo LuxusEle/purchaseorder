@@ -416,7 +416,7 @@ async function addStaffMember() {
         
         document.getElementById('newStaffEmail').value = '';
         await loadStaffMembers();
-        showAlert(`Staff member ${email} added successfully!);
+        showAlert(`Staff member ${email} added successfully!`);
     } catch (error) {
         alert('Error adding staff member: ' + error.message);
     }
@@ -477,18 +477,22 @@ function renderStaffMembers() {
         return;
     }
     
-    tbody.innerHTML = staffMembers.map(staff => `
-        <tr>
+    tbody.innerHTML = staffMembers.map(staff => {
+        const statusBadge = staff.status === 'active' ? 'active' : 'pending';
+        const statusText = staff.status || 'invited';
+        const addedDate = new Date(staff.addedAt).toLocaleDateString();
+        
+        return `<tr>
             <td>${staff.email}</td>
-            <td><span class="badge badge-${staff.status === 'active' ? 'active' : 'pending'}">${staff.status || 'invited'}</span></td>
-            <td>${new Date(staff.addedAt).toLocaleDateString()}</td>
+            <td><span class="badge badge-${statusBadge}">${statusText}</span></td>
+            <td>${addedDate}</td>
             <td>
                 <button class="btn-action btn-delete" onclick="removeStaffMember('${staff.id}')">
                     <i class="fas fa-trash"></i> Remove
                 </button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 // Load data from Firebase
@@ -1511,7 +1515,7 @@ async function payPurchaseOrder(index) {
     renderProjects();
     renderFinance();
     
-    alert(`✅ Payment recorded!\n\nPO: ${order.id}\nAmount Paid: ${formatCurrency(amount)}\nNew Status: ${order.status}\n${order.status === 'settled' ? 'Purchase Order is now fully settled.' : `Remaining: ${formatCurrency((order.totalAmount - order.paidAmount))}`}`);
+    alert(`âœ… Payment recorded!\n\nPO: ${order.id}\nAmount Paid: ${formatCurrency(amount)}\nNew Status: ${order.status}\n${order.status === 'settled' ? 'Purchase Order is now fully settled.' : `Remaining: ${formatCurrency((order.totalAmount - order.paidAmount))}`}`);
 }
 
 function addOrderItem() {
@@ -1653,7 +1657,7 @@ function validateOrderQuantity(selectElement) {
     if (bomItem) {
         const requestedQty = parseInt(qtyInput.value);
         if (requestedQty > bomItem.maxQty) {
-            showAlert(`Cannot order more than ${bomItem.maxQty} units of ${selectedItemName} (as specified in BOM));
+            showAlert(`Cannot order more than ${bomItem.maxQty} units of ${selectedItemName} (as specified in BOM)`);
             qtyInput.value = bomItem.maxQty;
             return false;
         }
@@ -2868,7 +2872,7 @@ async function convertQuoteToProject(type, index) {
     renderFinance();
     updateDashboard();
     
-    showAlert(`✅ Project Created Successfully!\n\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${formatCurrency(advance)}\nBalance: ${formatCurrency(project.balanceRemaining)});
+    showAlert(`âœ… Project Created Successfully!\n\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${formatCurrency(advance)}\nBalance: ${formatCurrency(project.balanceRemaining)}`);
 }
 
 // Settings Management
@@ -3660,7 +3664,7 @@ function viewProjectDetails(index) {
         return po ? `${po.id} - ${po.supplier}: ${formatCurrency(po.totalAmount)} (${po.status})` : poId;
     }).join('\n');
     
-    showAlert(`Project Details:\n\nID: ${project.id}\nName: ${project.projectName}\nCustomer: ${project.customerName}\n\nFinancials:\nTotal Value: ${formatCurrency(project.totalValue)}\nAdvance Received: ${formatCurrency(project.advanceReceived)}\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nPurchase Orders:\n${poDetails}\n\nTotal PO Cost: ${formatCurrency(project.totalPOCost)}\nPaid: ${formatCurrency(project.paidToPOs)}\nPending: ${formatCurrency(project.pendingPOPayments)});
+    showAlert(`Project Details:\n\nID: ${project.id}\nName: ${project.projectName}\nCustomer: ${project.customerName}\n\nFinancials:\nTotal Value: ${formatCurrency(project.totalValue)}\nAdvance Received: ${formatCurrency(project.advanceReceived)}\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nPurchase Orders:\n${poDetails}\n\nTotal PO Cost: ${formatCurrency(project.totalPOCost)}\nPaid: ${formatCurrency(project.paidToPOs)}\nPending: ${formatCurrency(project.pendingPOPayments)}`);
 }
 
 // Record Payment to Customer
@@ -3693,7 +3697,7 @@ async function recordPayment(index) {
     renderProjects();
     renderFinance();
     
-    showAlert(`✅ Payment recorded!\n\nAmount: ${formatCurrency(amount)}\nNew Balance: ${formatCurrency(project.balanceRemaining)});
+    showAlert(`âœ… Payment recorded!\n\nAmount: ${formatCurrency(amount)}\nNew Balance: ${formatCurrency(project.balanceRemaining)}`);
 }
 
 // Render Finance Dashboard
@@ -3758,34 +3762,34 @@ async function testFirebaseConnection() {
     try {
         // Check if Firebase is initialized
         if (!window.firebaseAuth) {
-            console.error('❌ Firebase Auth not initialized');
+            console.error('âŒ Firebase Auth not initialized');
             showAlert('Firebase Auth is not initialized. Check your Firebase config.');
             return;
         }
-        console.log('✅ Firebase Auth initialized');
+        console.log('âœ… Firebase Auth initialized');
         
         if (!window.firebaseDb) {
-            console.error('❌ Firestore not initialized');
+            console.error('âŒ Firestore not initialized');
             showAlert('Firestore is not initialized. Check your Firebase config.');
             return;
         }
-        console.log('✅ Firestore initialized');
+        console.log('âœ… Firestore initialized');
         
         if (!window.firebaseStorage) {
-            console.error('❌ Firebase Storage not initialized');
+            console.error('âŒ Firebase Storage not initialized');
             showAlert('Firebase Storage is not initialized. Check your Firebase config.');
             return;
         }
-        console.log('✅ Firebase Storage initialized');
+        console.log('âœ… Firebase Storage initialized');
         
         // Check authentication state
         const user = window.firebaseAuth.currentUser;
         if (!user) {
-            console.warn('⚠️ No user logged in');
+            console.warn('âš ï¸ No user logged in');
             showAlert('Please login first to test Firebase connection.');
             return;
         }
-        console.log('✅ User logged in:', user.email);
+        console.log('âœ… User logged in:', user.email);
         console.log('   User ID:', user.uid);
         console.log('   Company ID:', currentCompanyId);
         console.log('   User Role:', currentUserRole);
@@ -3798,23 +3802,23 @@ async function testFirebaseConnection() {
             timestamp: new Date().toISOString(),
             userId: user.uid
         });
-        console.log('✅ Firestore write successful');
+        console.log('âœ… Firestore write successful');
         
         // Try to read test data
         console.log('\nTesting Firestore read...');
         const testDoc = await window.firebaseGetDoc(testRef);
         if (testDoc.exists()) {
-            console.log('✅ Firestore read successful:', testDoc.data());
+            console.log('âœ… Firestore read successful:', testDoc.data());
         } else {
-            console.error('❌ Firestore read failed - document not found');
+            console.error('âŒ Firestore read failed - document not found');
         }
         
-        console.log('\n=== ALL TESTS PASSED ✅ ===');
-        showAlert('✅ Firebase is connected and working!\n\nCheck console for details.');
+        console.log('\n=== ALL TESTS PASSED âœ… ===');
+        showAlert('âœ… Firebase is connected and working!\n\nCheck console for details.');
         
     } catch (error) {
-        console.error('❌ Firebase test failed:', error);
-        alert('❌ Firebase connection error:\n\n' + error.message + '\n\nCheck console for details.');
+        console.error('âŒ Firebase test failed:', error);
+        alert('âŒ Firebase connection error:\n\n' + error.message + '\n\nCheck console for details.');
     }
 }
 
