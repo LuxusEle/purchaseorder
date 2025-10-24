@@ -21,7 +21,7 @@ let staffMembers = [];
 function formatCurrency(amount) {
     const symbol = settings.currencySymbol || 'Rs';
     const formattedAmount = amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    return `${symbol}${formattedAmount}`;
+    return `${symbol} ${formattedAmount}`;
 }
 
 // Initialize App
@@ -464,13 +464,20 @@ function updateHeaderLogo() {
     const headerLogoIcon = document.getElementById('headerLogoIcon');
     const headerCompanyName = document.getElementById('headerCompanyName');
     
+    console.log('updateHeaderLogo called with:', {
+        companyLogo: settings.companyLogo,
+        companyName: settings.companyName
+    });
+    
     if (settings.companyLogo) {
         headerLogoImg.src = settings.companyLogo;
         headerLogoImg.style.display = 'block';
         headerLogoIcon.style.display = 'none';
+        console.log('Logo displayed');
     } else {
         headerLogoImg.style.display = 'none';
         headerLogoIcon.style.display = 'block';
+        console.log('No logo, showing icon');
     }
     
     if (settings.companyName && settings.companyName !== 'Your Company Name') {
@@ -663,11 +670,19 @@ function setupEventListeners() {
     });
     
     // Forms
+    console.log('Setting up form event listeners...');
+    const addLeadForm = document.getElementById('addLeadForm');
+    if (addLeadForm) {
+        console.log('addLeadForm found, adding submit listener');
+        addLeadForm.addEventListener('submit', handleAddLead);
+    } else {
+        console.error('addLeadForm not found!');
+    }
+    
     document.getElementById('addItemForm').addEventListener('submit', handleAddItem);
     document.getElementById('addSupplierForm').addEventListener('submit', handleAddSupplier);
     document.getElementById('createOrderForm').addEventListener('submit', handleCreateOrder);
     document.getElementById('addCustomerForm').addEventListener('submit', handleAddCustomer);
-    document.getElementById('addLeadForm').addEventListener('submit', handleAddLead);
     document.getElementById('quickAddCustomerForm').addEventListener('submit', handleQuickAddCustomer);
     
     // Image upload preview
@@ -1798,48 +1813,67 @@ function filterLeads(filter) {
 }
 
 async function handleAddLead(e) {
-    e.preventDefault();
-    
-    console.log('Adding lead...');
-    
-    const lead = {
-        id: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].id : 'LEAD-' + String(leads.length + 1).padStart(5, '0'),
-        name: document.getElementById('leadName').value,
-        customerId: document.getElementById('leadCustomer').value,
-        source: document.getElementById('leadSource').value,
-        stage: document.getElementById('leadStage').value,
-        interest: document.getElementById('leadInterest').value,
-        notes: document.getElementById('leadNotes').value,
-        createdDate: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].createdDate : new Date().toISOString().split('T')[0],
-        bom: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].bom : null
-    };
-    
-    console.log('Lead object:', lead);
-    
-    if (currentEditingLeadIndex !== null) {
-        // Update existing lead
-        leads[currentEditingLeadIndex] = lead;
-        currentEditingLeadIndex = null;
-    } else {
-        // Add new lead
-        leads.push(lead);
+    try {
+        e.preventDefault();
+        
+        console.log('=== handleAddLead started ===');
+        console.log('Form values:', {
+            name: document.getElementById('leadName').value,
+            customerId: document.getElementById('leadCustomer').value,
+            source: document.getElementById('leadSource').value,
+            stage: document.getElementById('leadStage').value,
+            interest: document.getElementById('leadInterest').value,
+            notes: document.getElementById('leadNotes').value
+        });
+        
+        const lead = {
+            id: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].id : 'LEAD-' + String(leads.length + 1).padStart(5, '0'),
+            name: document.getElementById('leadName').value,
+            customerId: document.getElementById('leadCustomer').value,
+            source: document.getElementById('leadSource').value,
+            stage: document.getElementById('leadStage').value,
+            interest: document.getElementById('leadInterest').value,
+            notes: document.getElementById('leadNotes').value,
+            createdDate: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].createdDate : new Date().toISOString().split('T')[0],
+            bom: currentEditingLeadIndex !== null ? leads[currentEditingLeadIndex].bom : null
+        };
+        
+        console.log('Lead object created:', lead);
+        
+        if (currentEditingLeadIndex !== null) {
+            // Update existing lead
+            leads[currentEditingLeadIndex] = lead;
+            currentEditingLeadIndex = null;
+            console.log('Updated existing lead');
+        } else {
+            // Add new lead
+            leads.push(lead);
+            console.log('Added new lead, total leads:', leads.length);
+        }
+        
+        saveData();
+        console.log('Saved to localStorage');
+        
+        await saveDataToFirebase();
+        console.log('Saved to Firebase');
+        
+        renderLeads();
+        console.log('Rendered leads');
+        
+        updateDashboard();
+        updateCustomerSelects();
+        closeModal('addLeadModal');
+        e.target.reset();
+        
+        // Reset button text
+        document.getElementById('leadSubmitText').textContent = 'Add Lead';
+        document.querySelector('#leadSubmitBtn i').className = 'fas fa-plus';
+        
+        console.log('=== handleAddLead completed successfully ===');
+    } catch (error) {
+        console.error('Error in handleAddLead:', error);
+        alert('Error adding lead: ' + error.message);
     }
-    
-    console.log('Total leads now:', leads.length);
-    
-    saveData();
-    await saveDataToFirebase();
-    renderLeads();
-    updateDashboard();
-    updateCustomerSelects();
-    closeModal('addLeadModal');
-    e.target.reset();
-    
-    // Reset button text
-    document.getElementById('leadSubmitText').textContent = 'Add Lead';
-    document.querySelector('#leadSubmitBtn i').className = 'fas fa-plus';
-    
-    console.log('Lead added successfully!');
 }
 
 function editLead(index, event) {
