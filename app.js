@@ -19,6 +19,75 @@ let staffMembers = [];
 let leadSortColumn = null;
 let leadSortDirection = 'asc';
 
+// Custom Alert/Confirm/Prompt Functions
+let customAlertCallback = null;
+let customConfirmCallback = null;
+let customPromptCallback = null;
+
+function showAlert(message, title = 'Notice') {
+    document.getElementById('customAlertTitle').textContent = title;
+    document.getElementById('customAlertMessage').textContent = message;
+    document.getElementById('customAlertModal').classList.add('active');
+}
+
+function closeCustomAlert() {
+    document.getElementById('customAlertModal').classList.remove('active');
+    if (customAlertCallback) {
+        customAlertCallback();
+        customAlertCallback = null;
+    }
+}
+
+function showConfirm(message, title = 'Confirm Action') {
+    return new Promise((resolve) => {
+        document.getElementById('customConfirmTitle').textContent = title;
+        document.getElementById('customConfirmMessage').textContent = message;
+        document.getElementById('customConfirmModal').classList.add('active');
+        customConfirmCallback = resolve;
+    });
+}
+
+function closeCustomConfirm(result) {
+    document.getElementById('customConfirmModal').classList.remove('active');
+    if (customConfirmCallback) {
+        customConfirmCallback(result);
+        customConfirmCallback = null;
+    }
+}
+
+function showPrompt(message, defaultValue = '', title = 'Input Required') {
+    return new Promise((resolve) => {
+        document.getElementById('customPromptTitle').textContent = title;
+        document.getElementById('customPromptMessage').textContent = message;
+        document.getElementById('customPromptInput').value = defaultValue;
+        document.getElementById('customPromptModal').classList.add('active');
+        customPromptCallback = resolve;
+        
+        // Focus on input
+        setTimeout(() => {
+            document.getElementById('customPromptInput').focus();
+        }, 100);
+    });
+}
+
+function closeCustomPrompt(result) {
+    const modal = document.getElementById('customPromptModal');
+    const input = document.getElementById('customPromptInput');
+    
+    modal.classList.remove('active');
+    
+    if (customPromptCallback) {
+        if (result === 'value') {
+            customPromptCallback(input.value);
+        } else {
+            customPromptCallback(null);
+        }
+        customPromptCallback = null;
+    }
+    
+    input.value = '';
+}
+
 // Helper function to format currency
 function formatCurrency(amount) {
     // Handle undefined, null, or invalid values
@@ -41,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!window.firebaseAuth || !window.firebaseDb || !window.firebaseStorage) {
             console.error('Firebase not fully initialized!');
-            alert('Firebase initialization error. Please refresh the page.');
+            showAlert('Firebase initialization error. Please refresh the page.');
             return;
         }
         
@@ -87,7 +156,7 @@ function setupAuthentication() {
                 if (selectedCompany) {
                     currentCompanyId = selectedCompany;
                 } else {
-                    alert('Please select a company');
+                    showAlert('Please select a company');
                     await handleLogout();
                     return;
                 }
@@ -158,7 +227,7 @@ function setupAuthentication() {
         if (mode === 'staff') {
             const companyId = document.getElementById('loginCompanySelect').value;
             if (!companyId) {
-                alert('Please select a company');
+                showAlert('Please select a company');
                 return;
             }
             
@@ -170,7 +239,7 @@ function setupAuthentication() {
                 );
                 
                 if (!staffDoc.exists()) {
-                    alert('You are not authorized to access this company');
+                    showAlert('You are not authorized to access this company');
                     await handleLogout();
                     return;
                 }
@@ -210,7 +279,7 @@ function setupAuthentication() {
                 createdAt: new Date().toISOString()
             });
             
-            alert('Account created successfully! Please login.');
+            showAlert('Account created successfully! Please login.');
             showLoginForm();
         } catch (error) {
             alert('Registration failed: ' + error.message);
@@ -221,7 +290,7 @@ function setupAuthentication() {
 async function loadAvailableCompanies() {
     const email = document.getElementById('loginEmail').value;
     if (!email) {
-        alert('Please enter your email first');
+        showAlert('Please enter your email first');
         return;
     }
     
@@ -249,7 +318,7 @@ async function loadAvailableCompanies() {
         
         if (foundCompanies === 0) {
             select.innerHTML = '<option value="">No companies found</option>';
-            alert('You are not added as staff to any company. Please contact the company owner.');
+            showAlert('You are not added as staff to any company. Please contact the company owner.');
         }
     } catch (error) {
         console.error('Error loading companies:', error);
@@ -288,18 +357,18 @@ async function handleLogout() {
 // Staff Management Functions
 async function addStaffMember() {
     if (currentUserRole !== 'owner') {
-        alert('Only owners can add staff members');
+        showAlert('Only owners can add staff members');
         return;
     }
     
     const email = document.getElementById('newStaffEmail').value.trim();
     if (!email) {
-        alert('Please enter an email address');
+        showAlert('Please enter an email address');
         return;
     }
     
     if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-        alert('Please enter a valid email address');
+        showAlert('Please enter a valid email address');
         return;
     }
     
@@ -318,7 +387,7 @@ async function addStaffMember() {
         
         document.getElementById('newStaffEmail').value = '';
         await loadStaffMembers();
-        alert(`Staff member ${email} added successfully!`);
+        showAlert(`Staff member ${email} added successfully!);
     } catch (error) {
         alert('Error adding staff member: ' + error.message);
     }
@@ -326,11 +395,12 @@ async function addStaffMember() {
 
 async function removeStaffMember(staffId) {
     if (currentUserRole !== 'owner') {
-        alert('Only owners can remove staff members');
+        showAlert('Only owners can remove staff members');
         return;
     }
     
-    if (!confirm('Are you sure you want to remove this staff member?')) {
+    const confirmed = await showConfirm('Are you sure you want to remove this staff member?', 'Remove Staff Member');
+    if (!confirmed) {
         return;
     }
     
@@ -339,9 +409,9 @@ async function removeStaffMember(staffId) {
             window.firebaseDoc(window.firebaseDb, 'companies', currentCompanyId, 'staff', staffId)
         );
         await loadStaffMembers();
-        alert('Staff member removed successfully');
+        showAlert('Staff member removed successfully', 'Success');
     } catch (error) {
-        alert('Error removing staff member: ' + error.message);
+        showAlert('Error removing staff member: ' + error.message, 'Error');
     }
 }
 
@@ -546,14 +616,14 @@ async function handleLogoUpload(input) {
     
     // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
-        alert('File size must be less than 2MB');
+        showAlert('File size must be less than 2MB');
         input.value = '';
         return;
     }
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
+        showAlert('Please select an image file');
         input.value = '';
         return;
     }
@@ -584,7 +654,7 @@ async function handleLogoUpload(input) {
         settings.companyLogo = downloadURL;
         updateHeaderLogo();
         
-        alert('Logo uploaded successfully!');
+        showAlert('Logo uploaded successfully!');
     } catch (error) {
         console.error('Error uploading logo:', error);
         alert('Error uploading logo: ' + error.message + '\n\nPlease check your internet connection and try again.');
@@ -1272,11 +1342,95 @@ function handleCreateOrder(e) {
 
 function viewOrder(index) {
     const order = orders[index];
-    alert(`Order Details:\n\nID: ${order.id}\nSupplier: ${order.supplier}\nDate: ${order.date}\nTotal: ${formatCurrency(order.totalAmount)}\nStatus: ${order.status}\n\nItems:\n${order.items.map(i => `- ${i.name} (${i.quantity}x @ ${formatCurrency(i.price)})`).join('\n')}`);
+    
+    const statusColor = {
+        'pending': '#f59e0b',
+        'approved': '#3b82f6',
+        'delivered': '#10b981',
+        'cancelled': '#ef4444'
+    };
+    
+    const itemsHTML = order.items.map(item => `
+        <tr>
+            <td>${item.name}</td>
+            <td style="text-align: center;">${item.quantity}</td>
+            <td style="text-align: right;">${formatCurrency(item.price)}</td>
+            <td style="text-align: right;"><strong>${formatCurrency(item.quantity * item.price)}</strong></td>
+        </tr>
+    `).join('');
+    
+    const content = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+            <div style="background: var(--bg-secondary); padding: 20px; border-radius: 8px;">
+                <h3 style="margin: 0 0 16px 0; color: var(--primary-color);">Order Information</h3>
+                <div style="display: grid; gap: 12px;">
+                    <div>
+                        <span style="color: var(--text-secondary); font-size: 14px;">Order ID</span>
+                        <div style="font-size: 16px; font-weight: 600;">${order.id}</div>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); font-size: 14px;">Date</span>
+                        <div style="font-size: 16px;">${order.date}</div>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); font-size: 14px;">Status</span>
+                        <div><span class="badge" style="background: ${statusColor[order.status]}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase;">${order.status}</span></div>
+                    </div>
+                </div>
+            </div>
+            <div style="background: var(--bg-secondary); padding: 20px; border-radius: 8px;">
+                <h3 style="margin: 0 0 16px 0; color: var(--primary-color);">Supplier Details</h3>
+                <div style="display: grid; gap: 12px;">
+                    <div>
+                        <span style="color: var(--text-secondary); font-size: 14px;">Supplier Name</span>
+                        <div style="font-size: 16px; font-weight: 600;">${order.supplier}</div>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); font-size: 14px;">Total Amount</span>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--primary-color);">${formatCurrency(order.totalAmount)}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+            <h3 style="margin: 0 0 16px 0; color: var(--primary-color);">Order Items</h3>
+            <table class="data-table" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th>Item Name</th>
+                        <th style="text-align: center;">Quantity</th>
+                        <th style="text-align: right;">Unit Price</th>
+                        <th style="text-align: right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHTML}
+                </tbody>
+                <tfoot>
+                    <tr style="border-top: 2px solid var(--border-color);">
+                        <td colspan="3" style="text-align: right; padding: 12px; font-weight: 600;">Grand Total:</td>
+                        <td style="text-align: right; padding: 12px; font-size: 18px; font-weight: 700; color: var(--primary-color);">${formatCurrency(order.totalAmount)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        
+        ${order.notes ? `
+            <div style="background: var(--bg-secondary); padding: 20px; border-radius: 8px;">
+                <h3 style="margin: 0 0 12px 0; color: var(--primary-color);">Notes</h3>
+                <p style="margin: 0; line-height: 1.6;">${order.notes}</p>
+            </div>
+        ` : ''}
+    `;
+    
+    document.getElementById('orderDetailsContent').innerHTML = content;
+    showModal('viewOrderModal');
 }
 
-function deleteOrder(index) {
-    if (confirm('Are you sure you want to delete this order?')) {
+async function deleteOrder(index) {
+    const confirmed = await showConfirm('Are you sure you want to delete this order?', 'Delete Order');
+    if (confirmed) {
         orders.splice(index, 1);
         saveData();
         renderOrders();
@@ -1296,12 +1450,12 @@ async function payPurchaseOrder(index) {
     
     const amount = parseFloat(payment) || 0;
     if (amount <= 0) {
-        alert('Please enter a valid payment amount.');
+        showAlert('Please enter a valid payment amount.');
         return;
     }
     
     if (amount > pendingAmount) {
-        alert('Payment amount exceeds pending balance.');
+        showAlert('Payment amount exceeds pending balance.');
         return;
     }
     
@@ -1353,7 +1507,7 @@ function removeOrderItem(button) {
     if (container.children.length > 1) {
         button.parentElement.remove();
     } else {
-        alert('At least one item is required');
+        showAlert('At least one item is required');
     }
 }
 
@@ -1470,7 +1624,7 @@ function validateOrderQuantity(selectElement) {
     if (bomItem) {
         const requestedQty = parseInt(qtyInput.value);
         if (requestedQty > bomItem.maxQty) {
-            alert(`Cannot order more than ${bomItem.maxQty} units of ${selectedItemName} (as specified in BOM)`);
+            showAlert(`Cannot order more than ${bomItem.maxQty} units of ${selectedItemName} (as specified in BOM));
             qtyInput.value = bomItem.maxQty;
             return false;
         }
@@ -2145,7 +2299,7 @@ function addBOMItem() {
     const quantity = parseInt(document.getElementById('bomItemQty').value) || 1;
     
     if (!selectIndex) {
-        alert('Please select an item');
+        showAlert('Please select an item');
         return;
     }
     
@@ -2235,7 +2389,7 @@ function updateBOMTotals() {
 function saveBOM() {
     const lead = leads[currentBOMLeadIndex];
     if (!lead.bom || lead.bom.items.length === 0) {
-        alert('Please add at least one item to the BOM');
+        showAlert('Please add at least one item to the BOM');
         return;
     }
     
@@ -2252,13 +2406,13 @@ function saveBOM() {
     
     saveData();
     renderLeads();
-    alert('BOM saved successfully!');
+    showAlert('BOM saved successfully!');
 }
 
 function generateEstimatePDF() {
     const lead = leads[currentBOMLeadIndex];
     if (!lead.bom || lead.bom.items.length === 0) {
-        alert('Please add items to the BOM and save before generating PDF');
+        showAlert('Please add items to the BOM and save before generating PDF');
         return;
     }
     
@@ -2540,7 +2694,7 @@ async function convertQuoteToProject(type, index) {
     if (type === 'lead') {
         const lead = leads[index];
         if (!lead.bom || lead.bom.length === 0) {
-            alert('This lead has no BOM items.');
+            showAlert('This lead has no BOM items.');
             return;
         }
         
@@ -2570,7 +2724,7 @@ async function convertQuoteToProject(type, index) {
     }
     
     if (!customer) {
-        alert('Customer not found for this quote.');
+        showAlert('Customer not found for this quote.');
         return;
     }
     
@@ -2662,7 +2816,7 @@ async function convertQuoteToProject(type, index) {
     renderFinance();
     updateDashboard();
     
-    alert(`✅ Project Created Successfully!\n\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${formatCurrency(advance)}\nBalance: ${formatCurrency(project.balanceRemaining)}`);
+    showAlert(`✅ Project Created Successfully!\n\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${formatCurrency(advance)}\nBalance: ${formatCurrency(project.balanceRemaining)});
 }
 
 // Settings Management
@@ -2729,7 +2883,7 @@ function saveSettings(e) {
     updateDashboard();
     
     // Show success message
-    alert('Settings saved successfully!');
+    showAlert('Settings saved successfully!');
 }
 
 function resetSettings() {
@@ -2758,7 +2912,7 @@ function resetSettings() {
         populateSettings();
         applySettings();
         
-        alert('Settings have been reset to defaults!');
+        showAlert('Settings have been reset to defaults!');
     }
 }
 
@@ -2812,7 +2966,7 @@ function addQuoteItem() {
     const quantity = parseInt(document.getElementById('quoteItemQty').value);
     
     if (!itemIndex || !quantity) {
-        alert('Please select an item and quantity');
+        showAlert('Please select an item and quantity');
         return;
     }
     
@@ -2882,12 +3036,12 @@ function saveQuote() {
     const notes = document.getElementById('quoteNotes').value;
     
     if (!customerId || !projectName) {
-        alert('Please select a customer and enter a project name');
+        showAlert('Please select a customer and enter a project name');
         return;
     }
     
     if (currentQuoteItems.length === 0) {
-        alert('Please add at least one item to the quote');
+        showAlert('Please add at least one item to the quote');
         return;
     }
     
@@ -2914,7 +3068,7 @@ function saveQuote() {
     renderQuotes();
     closeModal('addQuoteModal');
     
-    alert('Quote created successfully!');
+    showAlert('Quote created successfully!');
 }
 
 function deleteQuote(index) {
@@ -2929,7 +3083,7 @@ function generateQuotePDF(quoteIndex) {
     const quote = quoteIndex !== undefined ? quotes[quoteIndex] : null;
     
     if (!quote && currentQuoteItems.length === 0) {
-        alert('No quote data available');
+        showAlert('No quote data available');
         return;
     }
     
@@ -3380,7 +3534,7 @@ async function loadMockData() {
     console.log('Current User:', currentUser);
     
     if (!currentCompanyId) {
-        alert('Error: No company ID found. Please logout and login again.');
+        showAlert('Error: No company ID found. Please logout and login again.');
         return;
     }
     
@@ -3401,7 +3555,7 @@ async function loadMockData() {
     updateDashboard();
     
     console.log('All views re-rendered');
-    alert('Mock data loaded successfully! Check the console for details.');
+    showAlert('Mock data loaded successfully! Check the console for details.');
 }
 
 // Render Projects
@@ -3454,7 +3608,7 @@ function viewProjectDetails(index) {
         return po ? `${po.id} - ${po.supplier}: ${formatCurrency(po.totalAmount)} (${po.status})` : poId;
     }).join('\n');
     
-    alert(`Project Details:\n\nID: ${project.id}\nName: ${project.projectName}\nCustomer: ${project.customerName}\n\nFinancials:\nTotal Value: ${formatCurrency(project.totalValue)}\nAdvance Received: ${formatCurrency(project.advanceReceived)}\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nPurchase Orders:\n${poDetails}\n\nTotal PO Cost: ${formatCurrency(project.totalPOCost)}\nPaid: ${formatCurrency(project.paidToPOs)}\nPending: ${formatCurrency(project.pendingPOPayments)}`);
+    showAlert(`Project Details:\n\nID: ${project.id}\nName: ${project.projectName}\nCustomer: ${project.customerName}\n\nFinancials:\nTotal Value: ${formatCurrency(project.totalValue)}\nAdvance Received: ${formatCurrency(project.advanceReceived)}\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nPurchase Orders:\n${poDetails}\n\nTotal PO Cost: ${formatCurrency(project.totalPOCost)}\nPaid: ${formatCurrency(project.paidToPOs)}\nPending: ${formatCurrency(project.pendingPOPayments)});
 }
 
 // Record Payment to Customer
@@ -3466,12 +3620,12 @@ async function recordPayment(index) {
     
     const amount = parseFloat(payment) || 0;
     if (amount <= 0) {
-        alert('Please enter a valid payment amount.');
+        showAlert('Please enter a valid payment amount.');
         return;
     }
     
     if (amount > project.balanceRemaining) {
-        alert('Payment amount exceeds balance due.');
+        showAlert('Payment amount exceeds balance due.');
         return;
     }
     
@@ -3487,7 +3641,7 @@ async function recordPayment(index) {
     renderProjects();
     renderFinance();
     
-    alert(`✅ Payment recorded!\n\nAmount: ${formatCurrency(amount)}\nNew Balance: ${formatCurrency(project.balanceRemaining)}`);
+    showAlert(`✅ Payment recorded!\n\nAmount: ${formatCurrency(amount)}\nNew Balance: ${formatCurrency(project.balanceRemaining)});
 }
 
 // Render Finance Dashboard
@@ -3553,21 +3707,21 @@ async function testFirebaseConnection() {
         // Check if Firebase is initialized
         if (!window.firebaseAuth) {
             console.error('❌ Firebase Auth not initialized');
-            alert('Firebase Auth is not initialized. Check your Firebase config.');
+            showAlert('Firebase Auth is not initialized. Check your Firebase config.');
             return;
         }
         console.log('✅ Firebase Auth initialized');
         
         if (!window.firebaseDb) {
             console.error('❌ Firestore not initialized');
-            alert('Firestore is not initialized. Check your Firebase config.');
+            showAlert('Firestore is not initialized. Check your Firebase config.');
             return;
         }
         console.log('✅ Firestore initialized');
         
         if (!window.firebaseStorage) {
             console.error('❌ Firebase Storage not initialized');
-            alert('Firebase Storage is not initialized. Check your Firebase config.');
+            showAlert('Firebase Storage is not initialized. Check your Firebase config.');
             return;
         }
         console.log('✅ Firebase Storage initialized');
@@ -3576,7 +3730,7 @@ async function testFirebaseConnection() {
         const user = window.firebaseAuth.currentUser;
         if (!user) {
             console.warn('⚠️ No user logged in');
-            alert('Please login first to test Firebase connection.');
+            showAlert('Please login first to test Firebase connection.');
             return;
         }
         console.log('✅ User logged in:', user.email);
@@ -3604,10 +3758,11 @@ async function testFirebaseConnection() {
         }
         
         console.log('\n=== ALL TESTS PASSED ✅ ===');
-        alert('✅ Firebase is connected and working!\n\nCheck console for details.');
+        showAlert('✅ Firebase is connected and working!\n\nCheck console for details.');
         
     } catch (error) {
         console.error('❌ Firebase test failed:', error);
         alert('❌ Firebase connection error:\n\n' + error.message + '\n\nCheck console for details.');
     }
 }
+

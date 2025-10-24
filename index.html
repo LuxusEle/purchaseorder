@@ -1283,6 +1283,78 @@
         window.firebaseDeleteObject = deleteObject;
     </script>
     
+    <!-- Custom Alert/Confirm Modals -->
+    <div id="customAlertModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="customAlertTitle">Notice</h2>
+                <span class="close" onclick="closeCustomAlert()">&times;</span>
+            </div>
+            <div style="padding: 24px;">
+                <p id="customAlertMessage" style="line-height: 1.6; margin-bottom: 24px;"></p>
+                <div class="modal-actions">
+                    <button class="btn btn-primary" onclick="closeCustomAlert()" style="width: 100%;">
+                        <i class="fas fa-check"></i> OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="customConfirmModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="customConfirmTitle">Confirm Action</h2>
+                <span class="close" onclick="closeCustomConfirm(false)">&times;</span>
+            </div>
+            <div style="padding: 24px;">
+                <p id="customConfirmMessage" style="line-height: 1.6; margin-bottom: 24px;"></p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeCustomConfirm(false)">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button class="btn btn-primary" onclick="closeCustomConfirm(true)">
+                        <i class="fas fa-check"></i> Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="customPromptModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="customPromptTitle">Input Required</h2>
+                <span class="close" onclick="closeCustomPrompt(null)">&times;</span>
+            </div>
+            <div style="padding: 24px;">
+                <p id="customPromptMessage" style="line-height: 1.6; margin-bottom: 16px;"></p>
+                <input type="text" id="customPromptInput" class="form-control" style="margin-bottom: 24px;">
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeCustomPrompt(null)">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button class="btn btn-primary" onclick="closeCustomPrompt('value')">
+                        <i class="fas fa-check"></i> Submit
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Order Details Modal -->
+    <div id="viewOrderModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Order Details</h2>
+                <span class="close" onclick="closeModal('viewOrderModal')">&times;</span>
+            </div>
+            <div style="padding: 24px;">
+                <div id="orderDetailsContent"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="app.js"></script>
