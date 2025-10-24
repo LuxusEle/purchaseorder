@@ -1495,7 +1495,11 @@ async function payPurchaseOrder(index) {
     const paidAmount = order.paidAmount || 0;
     const pendingAmount = order.totalAmount - paidAmount;
     
-    const payment = prompt(`Pay Purchase Order: ${order.id}\nSupplier: ${order.supplier}\n\nTotal: ${formatCurrency(order.totalAmount)}\nPaid: ${formatCurrency(paidAmount)}\nPending: ${formatCurrency(pendingAmount)}\n\nEnter payment amount:`, pendingAmount.toFixed(2));
+    const payment = await showPrompt(
+        `Pay Purchase Order: ${order.id}\nSupplier: ${order.supplier}\n\nTotal: ${formatCurrency(order.totalAmount)}\nPaid: ${formatCurrency(paidAmount)}\nPending: ${formatCurrency(pendingAmount)}\n\nEnter payment amount:`,
+        pendingAmount.toFixed(2),
+        'Pay Purchase Order'
+    );
     
     if (payment === null) return;
     
@@ -1533,7 +1537,7 @@ async function payPurchaseOrder(index) {
     renderProjects();
     renderFinance();
     
-    alert(`âœ… Payment recorded!\n\nPO: ${order.id}\nAmount Paid: ${formatCurrency(amount)}\nNew Status: ${order.status}\n${order.status === 'settled' ? 'Purchase Order is now fully settled.' : `Remaining: ${formatCurrency((order.totalAmount - order.paidAmount))}`}`);
+    showAlert(`âœ… Payment recorded!\n\nPO: ${order.id}\nAmount Paid: ${formatCurrency(amount)}\nNew Status: ${order.status}\n${order.status === 'settled' ? 'Purchase Order is now fully settled.' : `Remaining: ${formatCurrency((order.totalAmount - order.paidAmount))}`}`, 'Payment Success');
 }
 
 // Generate Purchase Order PDF
@@ -3183,7 +3187,11 @@ async function convertQuoteToProject(type, index) {
     }
     
     // Prompt for advance payment
-    const advancePayment = prompt(`Enter advance payment received from ${customer.name}:\n(Quote Total: ${formatCurrency(quote.total)})`, '0');
+    const advancePayment = await showPrompt(
+        `Enter advance payment received from ${customer.name}:\n(Quote Total: ${formatCurrency(quote.total)})`,
+        '0',
+        'Advance Payment'
+    );
     if (advancePayment === null) return;
     
     const advance = parseFloat(advancePayment) || 0;
@@ -4080,7 +4088,11 @@ function viewProjectDetails(index) {
 // Record Payment to Customer
 async function recordPayment(index) {
     const project = projects[index];
-    const payment = prompt(`Record payment from ${project.customerName}:\n\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nEnter payment amount:`, '0');
+    const payment = await showPrompt(
+        `Record payment from ${project.customerName}:\n\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nEnter payment amount:`,
+        '0',
+        'Record Customer Payment'
+    );
     
     if (payment === null) return;
     
