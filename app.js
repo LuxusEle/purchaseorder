@@ -123,6 +123,12 @@ function formatCurrencyAligned(amount, width = 20) {
     return `${symbol}${padding}${formattedAmount}`;
 }
 
+// Format label and currency for perfect alignment
+function formatLabelCurrency(label, amount, labelWidth = 22, amountWidth = 20) {
+    const labelPadding = ' '.repeat(Math.max(0, labelWidth - label.length));
+    return `  ${label}${labelPadding}${formatCurrencyAligned(amount, amountWidth)}`;
+}
+
 // Format numbers with thousand separators (no currency symbol)
 function formatNumber(number, decimals = 0) {
     // Handle undefined, null, or invalid values
@@ -3353,9 +3359,11 @@ function viewInvoiceDetails(index) {
     
     // Format payment history professionally
     const paymentHistory = invoice.payments.length > 0 
-        ? invoice.payments.map(p => 
-            `  • ${new Date(p.date).toLocaleDateString()} - ${formatCurrencyAligned(p.amount)} (${p.method || 'Payment'})`
-          ).join('\n')
+        ? invoice.payments.map(p => {
+            const dateStr = new Date(p.date).toLocaleDateString();
+            const method = p.method || 'Payment';
+            return `  • ${dateStr.padEnd(12)} ${formatCurrencyAligned(p.amount, 18)} (${method})`;
+          }).join('\n')
         : '  No payments recorded yet';
     
     const amountDue = invoice.totalAmount - invoice.paidAmount;
@@ -3381,9 +3389,9 @@ DATES
 
 FINANCIAL SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Total Amount:         ${formatCurrencyAligned(invoice.totalAmount)}
-  Paid Amount:          ${formatCurrencyAligned(invoice.paidAmount)}
-  Amount Due:           ${formatCurrencyAligned(amountDue)}
+${formatLabelCurrency('Total Amount:', invoice.totalAmount)}
+${formatLabelCurrency('Paid Amount:', invoice.paidAmount)}
+${formatLabelCurrency('Amount Due:', amountDue)}
   
   Payment Progress:     ${((invoice.paidAmount / invoice.totalAmount) * 100).toFixed(1)}%
 
@@ -4493,7 +4501,9 @@ function viewProjectDetails(index) {
         if (!po) return `  • ${poId}`;
         
         const statusIcon = po.status === 'settled' ? '✓' : po.status === 'pending' ? '○' : '◐';
-        return `  ${statusIcon} ${po.id} - ${po.supplier}\n    Amount: ${formatCurrencyAligned(po.totalAmount)} (${po.status.toUpperCase()})`;
+        const supplierLine = `  ${statusIcon} ${po.id} - ${po.supplier}`;
+        const amountLine = `    ${formatLabelCurrency('Amount:', po.totalAmount, 8, 18)} (${po.status.toUpperCase()})`;
+        return `${supplierLine}\n${amountLine}`;
     }).join('\n\n');
     
     // Create professional formatted message
@@ -4512,9 +4522,9 @@ PROJECT INFORMATION
 
 FINANCIAL SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Total Value:          ${formatCurrencyAligned(project.totalValue)}
-  Advance Received:     ${formatCurrencyAligned(project.advanceReceived)}
-  Balance Due:          ${formatCurrencyAligned(project.balanceRemaining)}
+${formatLabelCurrency('Total Value:', project.totalValue)}
+${formatLabelCurrency('Advance Received:', project.advanceReceived)}
+${formatLabelCurrency('Balance Due:', project.balanceRemaining)}
 
 PURCHASE ORDERS (${project.purchaseOrders.length})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -4522,15 +4532,15 @@ ${poDetails || '  No purchase orders yet'}
 
 PO PAYMENT SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Total PO Cost:        ${formatCurrencyAligned(project.totalPOCost)}
-  Paid to Suppliers:    ${formatCurrencyAligned(project.paidToPOs)}
-  Pending Payments:     ${formatCurrencyAligned(project.pendingPOPayments)}
+${formatLabelCurrency('Total PO Cost:', project.totalPOCost)}
+${formatLabelCurrency('Paid to Suppliers:', project.paidToPOs)}
+${formatLabelCurrency('Pending Payments:', project.pendingPOPayments)}
 
 PROFIT ANALYSIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Revenue (Advance):    ${formatCurrencyAligned(project.advanceReceived)}
-  Costs (PO Paid):      ${formatCurrencyAligned(project.paidToPOs)}
-  Current Profit:       ${formatCurrencyAligned(project.advanceReceived - project.paidToPOs)}
+${formatLabelCurrency('Revenue (Advance):', project.advanceReceived)}
+${formatLabelCurrency('Costs (PO Paid):', project.paidToPOs)}
+${formatLabelCurrency('Current Profit:', project.advanceReceived - project.paidToPOs)}
   Profit Margin:        ${project.profitMargin}%
 `.trim();
     
