@@ -1149,12 +1149,12 @@ function renderOrders() {
             <td>${order.date}</td>
             <td>${order.supplier}</td>
             <td>${order.items.length} item(s)</td>
-            <td>${settings.currencySymbol}${order.totalAmount.toFixed(2)}</td>
+            <td>${formatCurrency(order.totalAmount)}</td>
             <td>
                 <span class="status-badge" style="background: ${statusColor};">
                     ${order.status.toUpperCase()}
                 </span>
-                ${order.status === 'pending' && paidAmount > 0 ? `<br><small>Paid: ${settings.currencySymbol}${paidAmount.toFixed(2)}</small>` : ''}
+                ${order.status === 'pending' && paidAmount > 0 ? `<br><small>Paid: ${formatCurrency(paidAmount)}</small>` : ''}
             </td>
             <td>
                 <div class="action-buttons">
@@ -1252,7 +1252,7 @@ async function payPurchaseOrder(index) {
     const paidAmount = order.paidAmount || 0;
     const pendingAmount = order.totalAmount - paidAmount;
     
-    const payment = prompt(`Pay Purchase Order: ${order.id}\nSupplier: ${order.supplier}\n\nTotal: ${settings.currencySymbol}${order.totalAmount.toFixed(2)}\nPaid: ${settings.currencySymbol}${paidAmount.toFixed(2)}\nPending: ${settings.currencySymbol}${pendingAmount.toFixed(2)}\n\nEnter payment amount:`, pendingAmount.toFixed(2));
+    const payment = prompt(`Pay Purchase Order: ${order.id}\nSupplier: ${order.supplier}\n\nTotal: ${formatCurrency(order.totalAmount)}\nPaid: ${formatCurrency(paidAmount)}\nPending: ${formatCurrency(pendingAmount)}\n\nEnter payment amount:`, pendingAmount.toFixed(2));
     
     if (payment === null) return;
     
@@ -1290,7 +1290,7 @@ async function payPurchaseOrder(index) {
     renderProjects();
     renderFinance();
     
-    alert(`✅ Payment recorded!\n\nPO: ${order.id}\nAmount Paid: ${settings.currencySymbol}${amount.toFixed(2)}\nNew Status: ${order.status}\n${order.status === 'settled' ? 'Purchase Order is now fully settled.' : `Remaining: ${settings.currencySymbol}${(order.totalAmount - order.paidAmount).toFixed(2)}`}`);
+    alert(`✅ Payment recorded!\n\nPO: ${order.id}\nAmount Paid: ${formatCurrency(amount)}\nNew Status: ${order.status}\n${order.status === 'settled' ? 'Purchase Order is now fully settled.' : `Remaining: ${formatCurrency((order.totalAmount - order.paidAmount))}`}`);
 }
 
 function addOrderItem() {
@@ -2354,7 +2354,7 @@ function renderQuotes() {
             <td>${quote.projectName}</td>
             <td>${quote.customer ? quote.customer.name : 'Unknown'}</td>
             <td>${quote.items.length}</td>
-            <td>${settings.currencySymbol}${quote.total.toFixed(2)}</td>
+            <td>${formatCurrency(quote.total)}</td>
             <td>${new Date(quote.date).toLocaleDateString()}</td>
             <td>
                 <div class="action-buttons">
@@ -2393,21 +2393,21 @@ function renderQuotes() {
                                     <td>${item.name}</td>
                                     <td>${item.type || '-'}</td>
                                     <td>${item.quantity}</td>
-                                    <td>${settings.currencySymbol}${parseFloat(item.price).toFixed(2)}</td>
-                                    <td>${settings.currencySymbol}${(parseFloat(item.quantity) * parseFloat(item.price)).toFixed(2)}</td>
+                                    <td>${formatCurrency(parseFloat(item.price))}</td>
+                                    <td>${formatCurrency((parseFloat(item.quantity) * parseFloat(item.price)))}</td>
                                 </tr>
                             `).join('')}
                             <tr style="border-top: 2px solid #ddd; font-weight: bold;">
                                 <td colspan="4" style="text-align: right;">Subtotal:</td>
-                                <td>${settings.currencySymbol}${quote.subtotal.toFixed(2)}</td>
+                                <td>${formatCurrency(quote.subtotal)}</td>
                             </tr>
                             <tr>
                                 <td colspan="4" style="text-align: right;">Profit Margin (${quote.profitMargin}%):</td>
-                                <td>${settings.currencySymbol}${quote.profit.toFixed(2)}</td>
+                                <td>${formatCurrency(quote.profit)}</td>
                             </tr>
                             <tr style="font-weight: bold; font-size: 1.1em;">
                                 <td colspan="4" style="text-align: right;">Total Estimate:</td>
-                                <td>${settings.currencySymbol}${quote.total.toFixed(2)}</td>
+                                <td>${formatCurrency(quote.total)}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -2468,7 +2468,7 @@ async function convertQuoteToProject(type, index) {
     }
     
     // Prompt for advance payment
-    const advancePayment = prompt(`Enter advance payment received from ${customer.name}:\n(Quote Total: ${settings.currencySymbol}${quote.total.toFixed(2)})`, '0');
+    const advancePayment = prompt(`Enter advance payment received from ${customer.name}:\n(Quote Total: ${formatCurrency(quote.total)})`, '0');
     if (advancePayment === null) return;
     
     const advance = parseFloat(advancePayment) || 0;
@@ -2555,7 +2555,7 @@ async function convertQuoteToProject(type, index) {
     renderFinance();
     updateDashboard();
     
-    alert(`✅ Project Created Successfully!\n\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${settings.currencySymbol}${advance.toFixed(2)}\nBalance: ${settings.currencySymbol}${project.balanceRemaining.toFixed(2)}`);
+    alert(`✅ Project Created Successfully!\n\nProject ID: ${projectId}\nPurchase Orders Created: ${createdPOs.length}\n${createdPOs.join(', ')}\n\nAdvance Received: ${formatCurrency(advance)}\nBalance: ${formatCurrency(project.balanceRemaining)}`);
 }
 
 // Settings Management
@@ -2738,8 +2738,8 @@ function renderQuoteItems() {
             <td>${item.name}</td>
             <td>${item.type}</td>
             <td>${item.quantity}</td>
-            <td>${settings.currencySymbol}${parseFloat(item.price).toFixed(2)}</td>
-            <td>${settings.currencySymbol}${(item.quantity * item.price).toFixed(2)}</td>
+            <td>${formatCurrency(parseFloat(item.price))}</td>
+            <td>${formatCurrency((item.quantity * item.price))}</td>
             <td>
                 <button class="btn-action btn-delete" onclick="removeQuoteItem(${index})">
                     <i class="fas fa-trash"></i>
@@ -2761,9 +2761,9 @@ function updateQuoteTotals() {
     const profit = subtotal * (profitPercent / 100);
     const total = subtotal + profit;
     
-    document.getElementById('quoteSubtotal').textContent = `${settings.currencySymbol}${subtotal.toFixed(2)}`;
-    document.getElementById('quoteProfit').textContent = `${settings.currencySymbol}${profit.toFixed(2)}`;
-    document.getElementById('quoteTotal').textContent = `${settings.currencySymbol}${total.toFixed(2)}`;
+    document.getElementById('quoteSubtotal').textContent = `${formatCurrency(subtotal)}`;
+    document.getElementById('quoteProfit').textContent = `${formatCurrency(profit)}`;
+    document.getElementById('quoteTotal').textContent = `${formatCurrency(total)}`;
     document.getElementById('quoteProfitPercentDisplay').textContent = profitPercent;
 }
 
@@ -2897,8 +2897,8 @@ function generateQuotePDF(quoteIndex) {
         item.name,
         item.type,
         item.quantity.toString(),
-        `${settings.currencySymbol}${parseFloat(item.price).toFixed(2)}`,
-        `${settings.currencySymbol}${(item.quantity * item.price).toFixed(2)}`
+        `${formatCurrency(parseFloat(item.price))}`,
+        `${formatCurrency((item.quantity * item.price))}`
     ]);
     
     doc.autoTable({
@@ -2908,9 +2908,9 @@ function generateQuotePDF(quoteIndex) {
         theme: 'striped',
         headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
         foot: [
-            ['', '', '', 'Subtotal:', `${settings.currencySymbol}${quoteData.subtotal.toFixed(2)}`],
-            ['', '', '', `Profit (${quoteData.profitMargin}%):`, `${settings.currencySymbol}${quoteData.profit.toFixed(2)}`],
-            ['', '', '', 'TOTAL:', `${settings.currencySymbol}${quoteData.total.toFixed(2)}`]
+            ['', '', '', 'Subtotal:', `${formatCurrency(quoteData.subtotal)}`],
+            ['', '', '', `Profit (${quoteData.profitMargin}%):`, `${formatCurrency(quoteData.profit)}`],
+            ['', '', '', 'TOTAL:', `${formatCurrency(quoteData.total)}`]
         ],
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
@@ -3315,10 +3315,10 @@ function renderProjects() {
                 <td><strong>${project.id}</strong></td>
                 <td>${project.projectName}</td>
                 <td>${project.customerName}</td>
-                <td>${settings.currencySymbol}${project.totalValue.toFixed(2)}</td>
-                <td>${settings.currencySymbol}${project.advanceReceived.toFixed(2)}</td>
+                <td>${formatCurrency(project.totalValue)}</td>
+                <td>${formatCurrency(project.advanceReceived)}</td>
                 <td>${project.purchaseOrders.length} POs</td>
-                <td>${settings.currencySymbol}${project.paidToPOs.toFixed(2)}</td>
+                <td>${formatCurrency(project.paidToPOs)}</td>
                 <td>
                     <span class="status-badge" style="background: ${statusColor};">
                         ${project.status.toUpperCase()}
@@ -3344,16 +3344,16 @@ function viewProjectDetails(index) {
     const project = projects[index];
     const poDetails = project.purchaseOrders.map(poId => {
         const po = orders.find(o => o.id === poId);
-        return po ? `${po.id} - ${po.supplier}: ${settings.currencySymbol}${po.totalAmount.toFixed(2)} (${po.status})` : poId;
+        return po ? `${po.id} - ${po.supplier}: ${formatCurrency(po.totalAmount)} (${po.status})` : poId;
     }).join('\n');
     
-    alert(`Project Details:\n\nID: ${project.id}\nName: ${project.projectName}\nCustomer: ${project.customerName}\n\nFinancials:\nTotal Value: ${settings.currencySymbol}${project.totalValue.toFixed(2)}\nAdvance Received: ${settings.currencySymbol}${project.advanceReceived.toFixed(2)}\nBalance Due: ${settings.currencySymbol}${project.balanceRemaining.toFixed(2)}\n\nPurchase Orders:\n${poDetails}\n\nTotal PO Cost: ${settings.currencySymbol}${project.totalPOCost.toFixed(2)}\nPaid: ${settings.currencySymbol}${project.paidToPOs.toFixed(2)}\nPending: ${settings.currencySymbol}${project.pendingPOPayments.toFixed(2)}`);
+    alert(`Project Details:\n\nID: ${project.id}\nName: ${project.projectName}\nCustomer: ${project.customerName}\n\nFinancials:\nTotal Value: ${formatCurrency(project.totalValue)}\nAdvance Received: ${formatCurrency(project.advanceReceived)}\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nPurchase Orders:\n${poDetails}\n\nTotal PO Cost: ${formatCurrency(project.totalPOCost)}\nPaid: ${formatCurrency(project.paidToPOs)}\nPending: ${formatCurrency(project.pendingPOPayments)}`);
 }
 
 // Record Payment to Customer
 async function recordPayment(index) {
     const project = projects[index];
-    const payment = prompt(`Record payment from ${project.customerName}:\n\nBalance Due: ${settings.currencySymbol}${project.balanceRemaining.toFixed(2)}\n\nEnter payment amount:`, '0');
+    const payment = prompt(`Record payment from ${project.customerName}:\n\nBalance Due: ${formatCurrency(project.balanceRemaining)}\n\nEnter payment amount:`, '0');
     
     if (payment === null) return;
     
@@ -3380,7 +3380,7 @@ async function recordPayment(index) {
     renderProjects();
     renderFinance();
     
-    alert(`✅ Payment recorded!\n\nAmount: ${settings.currencySymbol}${amount.toFixed(2)}\nNew Balance: ${settings.currencySymbol}${project.balanceRemaining.toFixed(2)}`);
+    alert(`✅ Payment recorded!\n\nAmount: ${formatCurrency(amount)}\nNew Balance: ${formatCurrency(project.balanceRemaining)}`);
 }
 
 // Render Finance Dashboard
@@ -3399,10 +3399,10 @@ function renderFinance() {
     const totalProfit = totalRevenue - totalExpenses;
     
     // Update summary cards
-    document.getElementById('totalRevenue').textContent = `${settings.currencySymbol}${totalRevenue.toFixed(2)}`;
-    document.getElementById('totalExpenses').textContent = `${settings.currencySymbol}${totalExpenses.toFixed(2)}`;
-    document.getElementById('totalProfit').textContent = `${settings.currencySymbol}${totalProfit.toFixed(2)}`;
-    document.getElementById('pendingPayments').textContent = `${settings.currencySymbol}${pendingPayments.toFixed(2)}`;
+    document.getElementById('totalRevenue').textContent = `${formatCurrency(totalRevenue)}`;
+    document.getElementById('totalExpenses').textContent = `${formatCurrency(totalExpenses)}`;
+    document.getElementById('totalProfit').textContent = `${formatCurrency(totalProfit)}`;
+    document.getElementById('pendingPayments').textContent = `${formatCurrency(pendingPayments)}`;
     
     // Render project breakdown
     const tbody = document.getElementById('financeProjectsTable');
@@ -3420,13 +3420,13 @@ function renderFinance() {
             <tr>
                 <td><strong>${project.id}</strong><br><small>${project.projectName}</small></td>
                 <td>${project.customerName}</td>
-                <td>${settings.currencySymbol}${project.totalValue.toFixed(2)}</td>
-                <td>${settings.currencySymbol}${project.advanceReceived.toFixed(2)}</td>
-                <td>${settings.currencySymbol}${project.totalPOCost.toFixed(2)}</td>
-                <td>${settings.currencySymbol}${project.paidToPOs.toFixed(2)}</td>
-                <td>${settings.currencySymbol}${project.pendingPOPayments.toFixed(2)}</td>
+                <td>${formatCurrency(project.totalValue)}</td>
+                <td>${formatCurrency(project.advanceReceived)}</td>
+                <td>${formatCurrency(project.totalPOCost)}</td>
+                <td>${formatCurrency(project.paidToPOs)}</td>
+                <td>${formatCurrency(project.pendingPOPayments)}</td>
                 <td style="color: ${profitColor}; font-weight: bold;">
-                    ${settings.currencySymbol}${projectProfit.toFixed(2)}
+                    ${formatCurrency(projectProfit)}
                 </td>
                 <td>
                     <span class="status-badge" style="background: ${project.status === 'active' ? '#f59e0b' : '#10b981'};">
