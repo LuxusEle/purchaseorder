@@ -730,7 +730,7 @@
                 
                 <!-- Financial Summary Cards -->
                 <div class="stats-grid" style="margin-bottom: 24px;">
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('projects')" style="cursor: pointer;" title="Click to view projects">
                         <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
                             <i class="fas fa-hand-holding-usd"></i>
                         </div>
@@ -739,7 +739,7 @@
                             <div class="stat-label">Total Revenue (Customer Payments)</div>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('orders')" style="cursor: pointer;" title="Click to view purchase orders">
                         <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
                             <i class="fas fa-receipt"></i>
                         </div>
@@ -748,7 +748,7 @@
                             <div class="stat-label">Total Expenses (PO Payments)</div>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" style="cursor: pointer;" title="Net profit calculation">
                         <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
                             <i class="fas fa-chart-line"></i>
                         </div>
@@ -757,7 +757,7 @@
                             <div class="stat-label">Net Profit</div>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchPage('orders')" style="cursor: pointer;" title="Click to view pending purchase orders">
                         <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
                             <i class="fas fa-exclamation-triangle"></i>
                         </div>

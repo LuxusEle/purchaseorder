@@ -111,6 +111,18 @@ function formatCurrency(amount) {
     return `${symbol} ${formattedAmount}`;
 }
 
+// Format numbers with thousand separators (no currency symbol)
+function formatNumber(number, decimals = 0) {
+    // Handle undefined, null, or invalid values
+    if (number === undefined || number === null || isNaN(number)) {
+        number = 0;
+    }
+    if (decimals > 0) {
+        return parseFloat(number).toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+    return parseInt(number).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
     // Wait for Firebase to initialize
@@ -1305,6 +1317,9 @@ function renderOrders() {
                     <button class="btn-action btn-view" onclick="viewOrder(${index})">
                         <i class="fas fa-eye"></i> View
                     </button>
+                    <button class="btn-action btn-primary" onclick="generatePOPDF(${index})" style="background: #059669;">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
                     ${order.status === 'pending' ? `
                     <button class="btn-action btn-success" onclick="payPurchaseOrder(${index})" style="background: #10b981;">
                         <i class="fas fa-dollar-sign"></i> Pay
@@ -1519,6 +1534,142 @@ async function payPurchaseOrder(index) {
     renderFinance();
     
     alert(`âœ… Payment recorded!\n\nPO: ${order.id}\nAmount Paid: ${formatCurrency(amount)}\nNew Status: ${order.status}\n${order.status === 'settled' ? 'Purchase Order is now fully settled.' : `Remaining: ${formatCurrency((order.totalAmount - order.paidAmount))}`}`);
+}
+
+// Generate Purchase Order PDF
+function generatePOPDF(orderIndex) {
+    const order = orders[orderIndex];
+    if (!order) {
+        showAlert('Purchase order not found');
+        return;
+    }
+    
+    const supplier = suppliers.find(s => s.name === order.supplier);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Convert primary color hex to RGB
+    const primaryColorRGB = hexToRgb(settings.primaryColor || '#4f46e5');
+    
+    // Add logo if exists
+    let startY = 35;
+    if (settings.companyLogo) {
+        try {
+            doc.addImage(settings.companyLogo, 'PNG', 14, 15, 40, 20);
+            startY = 40;
+        } catch (e) {
+            console.error('Error adding logo:', e);
+        }
+    }
+    
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b);
+    doc.text('PURCHASE ORDER', 105, 20, { align: 'center' });
+    
+    // Company Info (from settings)
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(settings.companyName || 'Company Name', 14, startY);
+    doc.text(settings.companyAddress || 'Address', 14, startY + 5);
+    doc.text(`Phone: ${settings.companyPhone || 'Phone'}`, 14, startY + 10);
+    doc.text(`Email: ${settings.companyEmail || 'Email'}`, 14, startY + 15);
+    if (settings.companyWebsite) {
+        doc.text(`Web: ${settings.companyWebsite}`, 14, startY + 20);
+    }
+    
+    // PO Info
+    doc.setFontSize(10);
+    doc.text(`PO #: ${order.id}`, 140, startY);
+    doc.text(`Date: ${new Date(order.date).toLocaleDateString()}`, 140, startY + 5);
+    doc.text(`Status: ${order.status.toUpperCase()}`, 140, startY + 10);
+    if (order.projectId) {
+        doc.text(`Project: ${order.projectId}`, 140, startY + 15);
+    }
+    
+    // Supplier Info
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('SUPPLIER INFORMATION', 14, startY + 30);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    
+    if (supplier) {
+        doc.text(`Name: ${supplier.name}`, 14, startY + 37);
+        doc.text(`Contact: ${supplier.contact || 'N/A'}`, 14, startY + 42);
+        doc.text(`Email: ${supplier.email || 'N/A'}`, 14, startY + 47);
+        doc.text(`Phone: ${supplier.phone || 'N/A'}`, 14, startY + 52);
+        if (supplier.address) {
+            doc.text(`Address: ${supplier.address}`, 14, startY + 57);
+        }
+    } else {
+        doc.text(`Supplier: ${order.supplier}`, 14, startY + 37);
+    }
+    
+    // Items Table
+    const tableData = order.items.map(item => [
+        item.name,
+        formatNumber(item.quantity),
+        formatCurrency(item.price),
+        formatCurrency(item.quantity * item.price)
+    ]);
+    
+    const tableStartY = supplier && supplier.address ? startY + 65 : startY + 60;
+    
+    doc.autoTable({
+        startY: tableStartY,
+        head: [['Item Description', 'Quantity', 'Unit Price', 'Total']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b] },
+        foot: [
+            ['', '', 'TOTAL:', formatCurrency(order.totalAmount)]
+        ],
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+    
+    // Payment Status
+    if (order.paidAmount > 0) {
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('PAYMENT STATUS', 14, finalY);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        
+        const paidAmount = order.paidAmount || 0;
+        const pendingAmount = order.totalAmount - paidAmount;
+        
+        doc.text(`Total Amount: ${formatCurrency(order.totalAmount)}`, 14, finalY + 7);
+        doc.text(`Paid Amount: ${formatCurrency(paidAmount)}`, 14, finalY + 12);
+        doc.text(`Pending Amount: ${formatCurrency(pendingAmount)}`, 14, finalY + 17);
+        
+        if (order.paidDate) {
+            doc.text(`Payment Date: ${new Date(order.paidDate).toLocaleDateString()}`, 14, finalY + 22);
+        }
+    }
+    
+    // Notes
+    if (order.notes) {
+        const notesY = doc.lastAutoTable.finalY + (order.paidAmount > 0 ? 35 : 10);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('NOTES:', 14, notesY);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        const splitNotes = doc.splitTextToSize(order.notes, 180);
+        doc.text(splitNotes, 14, notesY + 7);
+    }
+    
+    // Footer
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFontSize(9);
+    doc.setTextColor(128, 128, 128);
+    doc.text('This is a computer-generated purchase order.', 105, pageHeight - 20, { align: 'center' });
+    doc.text(`Contact: ${settings.companyEmail || 'Email'}`, 105, pageHeight - 15, { align: 'center' });
+    
+    // Save PDF
+    doc.save(`PO_${order.id}_${order.supplier.replace(/\s/g, '_')}.pdf`);
 }
 
 function addOrderItem() {
@@ -3412,6 +3563,17 @@ function generateQuotePDF(quoteIndex) {
     // Convert primary color hex to RGB
     const primaryColorRGB = hexToRgb(settings.primaryColor);
     
+    // Add logo if exists
+    let startY = 35;
+    if (settings.companyLogo) {
+        try {
+            doc.addImage(settings.companyLogo, 'PNG', 14, 15, 40, 20);
+            startY = 40;
+        } catch (e) {
+            console.error('Error adding logo:', e);
+        }
+    }
+    
     // Header
     doc.setFontSize(24);
     doc.setTextColor(primaryColorRGB.r, primaryColorRGB.g, primaryColorRGB.b);
@@ -3420,41 +3582,42 @@ function generateQuotePDF(quoteIndex) {
     // Company Info
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
-    doc.text(settings.companyName, 14, 35);
-    doc.text(settings.companyAddress, 14, 40);
-    doc.text(`Phone: ${settings.companyPhone}`, 14, 45);
-    doc.text(`Email: ${settings.companyEmail}`, 14, 50);
+    doc.text(settings.companyName, 14, startY);
+    doc.text(settings.companyAddress, 14, startY + 5);
+    doc.text(`Phone: ${settings.companyPhone}`, 14, startY + 10);
+    doc.text(`Email: ${settings.companyEmail}`, 14, startY + 15);
     if (settings.companyWebsite) {
-        doc.text(`Web: ${settings.companyWebsite}`, 14, 55);
+        doc.text(`Web: ${settings.companyWebsite}`, 14, startY + 20);
     }
     
     // Quote Info
     doc.setFontSize(10);
-    doc.text(`Quote #: ${quoteData.id}`, 140, 35);
-    doc.text(`Date: ${new Date(quoteData.createdDate).toLocaleDateString()}`, 140, 40);
-    doc.text(`Valid Until: ${new Date(new Date(quoteData.createdDate).getTime() + 30*24*60*60*1000).toLocaleDateString()}`, 140, 45);
+    doc.text(`Quote #: ${quoteData.id}`, 140, startY);
+    doc.text(`Date: ${new Date(quoteData.createdDate).toLocaleDateString()}`, 140, startY + 5);
+    const validityDays = settings.quoteValidity || 30;
+    doc.text(`Valid Until: ${new Date(new Date(quoteData.createdDate).getTime() + validityDays*24*60*60*1000).toLocaleDateString()}`, 140, startY + 10);
     
     // Customer Info
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('CUSTOMER INFORMATION', 14, 68);
+    doc.text('CUSTOMER INFORMATION', 14, startY + 30);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
     
     if (customer) {
-        doc.text(`Name: ${customer.name}`, 14, 75);
-        doc.text(`Company: ${customer.company}`, 14, 80);
-        doc.text(`Email: ${customer.email}`, 14, 85);
-        doc.text(`Phone: ${customer.phone}`, 14, 90);
+        doc.text(`Name: ${customer.name}`, 14, startY + 37);
+        doc.text(`Company: ${customer.company}`, 14, startY + 42);
+        doc.text(`Email: ${customer.email}`, 14, startY + 47);
+        doc.text(`Phone: ${customer.phone}`, 14, startY + 52);
     }
     
     // Project Info
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('PROJECT DETAILS', 14, 103);
+    doc.text('PROJECT DETAILS', 14, startY + 65);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
-    doc.text(`Project: ${quoteData.projectName}`, 14, 110);
+    doc.text(`Project: ${quoteData.projectName}`, 14, startY + 72);
     
     // Items Table
     const tableData = quoteData.items.map(item => [
@@ -3466,7 +3629,7 @@ function generateQuotePDF(quoteIndex) {
     ]);
     
     doc.autoTable({
-        startY: 118,
+        startY: startY + 80,
         head: [['Item Description', 'Type', 'Qty', 'Unit Price', 'Total']],
         body: tableData,
         theme: 'striped',
