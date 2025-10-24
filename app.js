@@ -1865,7 +1865,17 @@ function renderLeadsTable() {
             </td>
             <td><strong>${lead.id}</strong></td>
             <td>${customerName}</td>
-            <td><span class="badge badge-${lead.stage}">${formatStage(lead.stage)}</span></td>
+            <td>
+                <select class="form-control" style="padding: 6px 8px; font-size: 13px; border-radius: 4px;" onchange="updateLeadStage(${index}, this.value)" onclick="event.stopPropagation()">
+                    <option value="initial-discussion" ${lead.stage === 'initial-discussion' ? 'selected' : ''}>Initial Discussion</option>
+                    <option value="site-visit" ${lead.stage === 'site-visit' ? 'selected' : ''}>Site Visit</option>
+                    <option value="measurements" ${lead.stage === 'measurements' ? 'selected' : ''}>Measurements</option>
+                    <option value="estimate" ${lead.stage === 'estimate' ? 'selected' : ''}>Estimate/BOM</option>
+                    <option value="estimate-approval" ${lead.stage === 'estimate-approval' ? 'selected' : ''}>Estimate Approval</option>
+                    <option value="won" ${lead.stage === 'won' ? 'selected' : ''}>Won</option>
+                    <option value="lost" ${lead.stage === 'lost' ? 'selected' : ''}>Lost</option>
+                </select>
+            </td>
             <td>${lead.source}</td>
             <td>${estimateValue}</td>
             <td>
@@ -2116,19 +2126,31 @@ function editLead(index, event) {
     document.getElementById('leadInterest').value = lead.interest || '';
     document.getElementById('leadNotes').value = lead.notes || '';
     
-    // Update button text
+    // Update modal title and button
+    document.querySelector('#addLeadModal .modal-header h2').textContent = 'Update Lead';
     document.getElementById('leadSubmitText').textContent = 'Update Lead';
     document.querySelector('#leadSubmitBtn i').className = 'fas fa-save';
     
     showAddLeadModal();
 }
 
-function deleteLead(index, event) {
+async function updateLeadStage(index, newStage) {
+    leads[index].stage = newStage;
+    saveData();
+    await saveDataToFirebase();
+    renderLeads();
+    updateDashboard();
+    showAlert(`Lead stage updated to: ${formatStage(newStage)}`, 'Stage Updated');
+}
+
+async function deleteLead(index, event) {
     if (event) event.stopPropagation();
     
-    if (confirm('Are you sure you want to delete this lead?')) {
+    const confirmed = await showConfirm('Are you sure you want to delete this lead?', 'Delete Lead');
+    if (confirmed) {
         leads.splice(index, 1);
         saveData();
+        await saveDataToFirebase();
         renderLeads();
         updateDashboard();
     }
@@ -2178,8 +2200,9 @@ function showAddCustomerModal() {
 function showAddLeadModal() {
     updateCustomerSelects();
     
-    // Reset button text if not editing
+    // Reset button text and title if not editing
     if (currentEditingLeadIndex === null) {
+        document.querySelector('#addLeadModal .modal-header h2').textContent = 'Add New Lead';
         document.getElementById('leadSubmitText').textContent = 'Add Lead';
         document.querySelector('#leadSubmitBtn i').className = 'fas fa-plus';
     }
